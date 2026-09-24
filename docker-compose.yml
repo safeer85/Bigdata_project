@@ -247,7 +247,8 @@ services:
       # deliberately given the smaller slice: it does no business logic.
       SPARK_WORKER_CORES: "3"
       SPARK_WORKER_MEMORY: "2g"
-    ports: ["8081:8081"]
+    # Host port is configurable: 8081 is very often already taken on a dev laptop.
+    ports: ["${SPARK_WORKER_UI_PORT:-8181}:8081"]
     volumes:
       - lake:/lake
       - shared:/shared

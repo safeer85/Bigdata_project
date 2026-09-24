@@ -110,17 +110,24 @@ def build_fleet(seed: int = None) -> Dict[str, VehicleState]:
     # The lemons are spread across the id range rather than clustered at the end,
     # so a reader skimming the report does not assume the flags are an artefact of
     # ordering.
-    lemon_ids = set(rng.sample(range(1, config.N_VEHICLES + 1), config.N_LEMONS))
+    lemon_ids = sorted(rng.sample(range(1, config.N_VEHICLES + 1), config.N_LEMONS))
+
+    # Failure modes are assigned ROUND-ROBIN over the chosen lemons, not derived
+    # from the vehicle number. Deriving it from `i % 3` looked simpler but meant a
+    # random sample of five ids could easily miss a whole failure mode -- and then
+    # the profitability report would have nothing to say about, say, maintenance.
+    # Round-robin guarantees all three modes appear whenever N_LEMONS >= 3.
+    lemon_kind = {vid: index % 3 for index, vid in enumerate(lemon_ids)}
 
     for i in range(1, config.N_VEHICLES + 1):
         vehicle_id = f"V{i:03d}"
         shift_name, start, end = SHIFTS[i % len(SHIFTS)]
-        is_lemon = i in lemon_ids
+        is_lemon = i in lemon_kind
 
         if is_lemon:
-            # Three ways to be unprofitable, and each lemon gets one of them, so
-            # the report's flags are not all triggered by the same root cause.
-            kind = i % 3
+            # Three ways to be unprofitable, one per lemon, so the report's flags
+            # are not all triggered by the same root cause.
+            kind = lemon_kind[i]
             fuel_rate = 0.16 if kind == 0 else 0.085
             maintenance = 0.45 if kind == 1 else 0.06
             demand = 0.35 if kind == 2 else 0.9
