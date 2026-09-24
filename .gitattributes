@@ -1,0 +1,25 @@
+# Force LF on everything that is executed inside a Linux container.
+#
+# This is not cosmetic. `scripts/create_topics.sh` and
+# `docker/airflow/airflow_entrypoint.sh` are BIND-MOUNTED into containers from the
+# host checkout. If Git checks them out with CRLF on a Windows machine, bash
+# inside the container fails with the classic `$'\r': command not found` and the
+# stack never comes up. The same applies to the Dockerfiles, the YAML that
+# Prometheus and Alertmanager parse, and the SQL that postgres runs at initdb.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+*.py      text eol=lf
+*.sql     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.json    text eol=lf
+Makefile  text eol=lf
+Dockerfile text eol=lf
+
+# PowerShell is the one thing that genuinely wants CRLF.
+*.ps1     text eol=crlf
+
+*.png     binary
+*.jpg     binary
+*.parquet binary
