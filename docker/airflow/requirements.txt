@@ -1,0 +1,8 @@
+# pyspark must match the Spark version used by the speed layer (3.5.3) so that the
+# Parquet files written by the archiver are read by an identical reader.
+pyspark==3.5.3
+pandas==2.0.3
+pyarrow==14.0.2
+psycopg[binary]==3.1.19
+prometheus-client==0.21.0
+Jinja2==3.1.4

@@ -1,0 +1,32 @@
+# Datasources are provisioned from this file, committed to the repo (SPEC 9.3),
+# so a fresh clone gets working dashboards with no manual clicking.
+apiVersion: 1
+
+datasources:
+  # Prometheus serves the PIPELINE-HEALTH dashboard: throughput, lag, drops.
+  - name: Prometheus
+    type: prometheus
+    uid: fleet-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 10s
+      httpMethod: POST
+
+  # PostgreSQL serves the FLEET-OPERATIONS dashboard, because the business figures
+  # (earnings by zone, profitability flags) live in the serving tables, not in a
+  # time-series database. Grafana reads the same rt_*/batch_* tables the API does.
+  - name: FleetDB
+    type: postgres
+    uid: fleet-postgres
+    access: proxy
+    url: ${PG_HOST}
+    user: ${PG_USER}
+    database: ${PG_DB}
+    secureJsonData:
+      password: ${PG_PASSWORD}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false

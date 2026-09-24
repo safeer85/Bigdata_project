@@ -1,0 +1,8 @@
+# Pinned to versions that work on the Python shipped in apache/spark:3.5.3-python3.
+# pandas and pyarrow are required by applyInPandasWithState and by the Arrow-based
+# conversions in the batch jobs; Spark 3.5 will refuse the pandas APIs without them.
+pandas==2.0.3
+pyarrow==14.0.2
+numpy==1.24.4
+psycopg[binary]==3.1.19
+prometheus-client==0.21.0

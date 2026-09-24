@@ -1,0 +1,35 @@
+# Alertmanager routes every alert to the API's webhook (SPEC 10.3), which stores
+# it in `alert_notifications`. That makes alert DELIVERY visible in the demo with
+# a single SQL query or API call, instead of asking the audience to trust that
+# Alertmanager sent something.
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: fleet-api
+  group_by: [alertname, severity]
+  # Short timings for the same reason the `for:` durations are short: one real
+  # minute is one simulated hour, so production-scale grouping windows would make
+  # a demo alert arrive after the viva has finished.
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 10m
+  routes:
+    - matchers: [severity="critical"]
+      receiver: fleet-api
+      repeat_interval: 5m
+
+receivers:
+  - name: fleet-api
+    webhook_configs:
+      - url: http://api:8000/alerts/webhook
+        # send_resolved is what lets the demo show an alert clearing again, e.g.
+        # after `make demo-outage` is followed by resume.
+        send_resolved: true
+
+inhibit_rules:
+  # If the API is down, every batch metric it exports goes stale. Suppress those
+  # downstream alerts so the on-call sees one root cause instead of five symptoms.
+  - source_matchers: [alertname="ApiDown"]
+    target_matchers: [stage="orchestration"]
+    equal: [project]

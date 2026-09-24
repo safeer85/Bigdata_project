@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+lake/
+checkpoints/
+shared/
+reports/*.html
+reports/*.csv
+landing/
+*.log
+.DS_Store
+.idea/
+.vscode/

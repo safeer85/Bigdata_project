@@ -1,0 +1,67 @@
+# Prometheus scrape configuration (SPEC 10.2).
+#
+# Scrape interval is 10s rather than the usual 15-60s because of the compressed
+# clock: 10 real seconds is 10 simulated minutes, so at the default interval a
+# whole simulated hour would be six data points. 10s keeps the dashboards legible
+# during a live demo without making the TSDB noticeably bigger over a 6h retention.
+global:
+  scrape_interval: 10s
+  scrape_timeout: 5s
+  evaluation_interval: 10s
+  external_labels:
+    project: fleet-pipeline
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # --- Ingestion ----------------------------------------------------------
+  - job_name: telemetry-sim
+    static_configs:
+      - targets: ["telemetry-sim:8001"]
+        labels: {stage: ingestion, component: telemetry_simulator}
+
+  - job_name: expense-sim
+    static_configs:
+      - targets: ["expense-sim:8002"]
+        labels: {stage: ingestion, component: expense_simulator}
+
+  # --- Processing ---------------------------------------------------------
+  # These endpoints are served by the Spark DRIVERS, from a StreamingQueryListener.
+  # Spark's own metrics sink cannot report per-query progress (input rate,
+  # watermark drops, Kafka lag), which is exactly what the pipeline-health
+  # dashboard needs.
+  - job_name: speed
+    static_configs:
+      - targets: ["speed:8003"]
+        labels: {stage: processing, component: speed_layer}
+
+  - job_name: archiver
+    static_configs:
+      - targets: ["archiver:8004"]
+        labels: {stage: processing, component: archiver}
+
+  # --- Serving, plus the batch metrics the API re-exports from PostgreSQL ---
+  # Airflow tasks are short-lived processes, so scraping them directly would
+  # always miss them. Instead of adding a Pushgateway, the API reads batch_runs
+  # and speed_batch_drift and exposes them here. See docs/decisions.md.
+  - job_name: api
+    static_configs:
+      - targets: ["api:8000"]
+        labels: {stage: serving, component: fastapi}
+
+  # --- Self / infrastructure ----------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels: {stage: serving, component: prometheus}
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+        labels: {stage: serving, component: alertmanager}

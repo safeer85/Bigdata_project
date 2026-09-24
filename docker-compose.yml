@@ -1,0 +1,497 @@
+# =============================================================================
+# Fleet pipeline - full Lambda stack (SPEC 2).
+#
+# Every image tag is pinned; there is no `latest` anywhere. Every service has a
+# healthcheck, and dependencies use `condition: service_healthy` so that `make up`
+# from a fresh clone brings the stack up in a correct order rather than in a
+# restart loop.
+#
+# Memory: the whole stack is sized to fit a laptop. Spark is the expensive part,
+# so the worker gets 2g and the two streaming drivers are capped explicitly. If
+# Docker Desktop has less than ~8 GB, see the troubleshooting section of README.md.
+# =============================================================================
+
+x-fleet-env: &fleet-env
+  env_file: [.env]
+
+volumes:
+  pgdata:       # PostgreSQL data
+  lake:         # Parquet data lake + Spark checkpoints (LAKE_ROOT)
+  landing:      # expense CSV drop zone
+  shared:       # simclock.json + odometer ledger, shared by every service
+  reports:      # generated HTML/CSV profitability reports
+  kafkadata:
+  airflowlogs:
+  grafanadata:
+  promdata:
+
+networks:
+  fleet:
+    driver: bridge
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # CLOCK AUTHORITY (SPEC 3)
+  # One-shot. Writes /shared/simclock.json only if it is absent, so restarting the
+  # stack resumes the same simulated timeline instead of jumping back to day 1.
+  # `make reset` deletes the file; only then does the timeline restart.
+  # ---------------------------------------------------------------------------
+  simclock-init:
+    build: {context: ., dockerfile: docker/app/Dockerfile}
+    image: fleet/app:1.0.0
+    container_name: fleet-simclock-init
+    <<: *fleet-env
+    command: ["python", "-m", "scripts.simclock_init"]
+    volumes:
+      - shared:/shared
+    networks: [fleet]
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # STORAGE / SERVING DATABASE (SPEC 9.1)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: fleet-postgres
+    <<: *fleet-env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Speeds up the initdb scripts; safe for a throwaway analytics DB.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - max_connections=120        # Spark sinks + Airflow + API all hold pools
+      - -c
+      - shared_buffers=128MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # *.sql here runs once, in filename order, on an empty data directory.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    # Host-side port is configurable because a developer laptop very often already
+    # has a PostgreSQL on 5432; inside the network it is always postgres:5432.
+    ports: ["${POSTGRES_HOST_PORT:-55432}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # INGESTION (SPEC 6): single-broker Kafka in KRaft mode, no ZooKeeper.
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: fleet-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      # Two advertised listeners: `kafka:9092` for containers, `localhost:29092`
+      # so the smoke test and a laptop-side console consumer can reach the broker.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # RF 1 everywhere: replication is explicitly out of scope (SPEC 13).
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # topics come from kafka-init only
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: fleet-kraft-cluster-0001
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx768m"
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    ports: ["29092:29092"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # Creates the two topics with the partition counts the design depends on.
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: fleet-kafka-init
+    depends_on:
+      kafka: {condition: service_healthy}
+    <<: *fleet-env
+    entrypoint: ["/bin/bash", "/init/create_topics.sh"]
+    volumes:
+      - ./scripts/create_topics.sh:/init/create_topics.sh:ro
+    networks: [fleet]
+    restart: "no"
+
+  # Optional broker browser for the demo. Started only with `make up-tools`.
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.0.0
+    container_name: fleet-kafka-ui
+    profiles: ["tools"]
+    depends_on:
+      kafka: {condition: service_healthy}
+    environment:
+      KAFKA_CLUSTERS_0_NAME: fleet
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports: ["8090:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # SIMULATORS (SPEC 5)
+  # ---------------------------------------------------------------------------
+  telemetry-sim:
+    build: {context: ., dockerfile: docker/app/Dockerfile}
+    image: fleet/app:1.0.0
+    container_name: fleet-telemetry-sim
+    <<: *fleet-env
+    command: ["python", "-m", "simulators.telemetry.main"]
+    depends_on:
+      kafka: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+      simclock-init: {condition: service_completed_successfully}
+    volumes:
+      - shared:/shared
+    ports:
+      - "8001:8001"    # Prometheus metrics
+      - "8010:8010"    # demo control endpoint (force_idle / pause / resume)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  expense-sim:
+    build: {context: ., dockerfile: docker/app/Dockerfile}
+    image: fleet/app:1.0.0
+    container_name: fleet-expense-sim
+    <<: *fleet-env
+    command: ["python", "-m", "simulators.expenses.main"]
+    depends_on:
+      simclock-init: {condition: service_completed_successfully}
+    volumes:
+      - shared:/shared
+      - landing:/landing
+    ports:
+      - "8002:8002"    # Prometheus metrics
+      - "8011:8011"    # demo control endpoint (resubmit / delay-next)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # SPEED LAYER (SPEC 7): standalone Spark, one master and one worker, sized so
+  # that BOTH streaming applications fit at the same time.
+  # ---------------------------------------------------------------------------
+  spark-master:
+    build: {context: ., dockerfile: docker/spark/Dockerfile}
+    image: fleet/spark:1.0.0
+    container_name: fleet-spark-master
+    <<: *fleet-env
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master"]
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+    ports:
+      - "8080:8080"    # master UI
+      - "7077:7077"
+    volumes:
+      - lake:/lake
+      - shared:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [fleet]
+    restart: unless-stopped
+
+  spark-worker:
+    build: {context: ., dockerfile: docker/spark/Dockerfile}
+    image: fleet/spark:1.0.0
+    container_name: fleet-spark-worker
+    <<: *fleet-env
+    depends_on:
+      spark-master: {condition: service_healthy}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+      # 3 cores / 2g total, divided between the two apps below. The archiver is
+      # deliberately given the smaller slice: it does no business logic.
+      SPARK_WORKER_CORES: "3"
+      SPARK_WORKER_MEMORY: "2g"
+    ports: ["8081:8081"]
+    volumes:
+      - lake:/lake
+      - shared:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # Raw archive writer. No business logic, separate application, separate
+  # checkpoint: a bug in the speed logic can never corrupt the master dataset.
+  archiver:
+    build: {context: ., dockerfile: docker/spark/Dockerfile}
+    image: fleet/spark:1.0.0
+    container_name: fleet-archiver
+    <<: *fleet-env
+    depends_on:
+      spark-worker: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+      simclock-init: {condition: service_completed_successfully}
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - spark://spark-master:7077
+      - --name
+      - fleet-archiver
+      - --conf
+      - spark.cores.max=1
+      - --conf
+      - spark.executor.memory=640m
+      - --conf
+      - spark.driver.memory=640m
+      - --conf
+      - spark.sql.shuffle.partitions=4
+      - /opt/fleet/streaming/archiver.py
+    environment:
+      PYTHONPATH: /opt/fleet
+    ports: ["8004:8004", "4041:4040"]
+    volumes:
+      - lake:/lake
+      - shared:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8004/metrics >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # Speed layer proper: validation/DLQ, dedup, zone enrichment, stateful idle
+  # alerts, hourly zone aggregates, running daily earnings.
+  speed:
+    build: {context: ., dockerfile: docker/spark/Dockerfile}
+    image: fleet/spark:1.0.0
+    container_name: fleet-speed
+    <<: *fleet-env
+    depends_on:
+      spark-worker: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+      simclock-init: {condition: service_completed_successfully}
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - spark://spark-master:7077
+      - --name
+      - fleet-speed
+      - --conf
+      - spark.cores.max=2
+      - --conf
+      - spark.executor.memory=900m
+      - --conf
+      - spark.driver.memory=900m
+      - --conf
+      - spark.sql.shuffle.partitions=4
+      # Arrow is what makes applyInPandasWithState practical; without it Spark
+      # falls back to row-at-a-time pickling.
+      - --conf
+      - spark.sql.execution.arrow.pyspark.enabled=true
+      - /opt/fleet/streaming/speed.py
+    environment:
+      PYTHONPATH: /opt/fleet
+    ports: ["8003:8003", "4040:4040"]
+    volumes:
+      - lake:/lake
+      - shared:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8003/metrics >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # BATCH LAYER (SPEC 8): a single Airflow container running the scheduler and
+  # the webserver with LocalExecutor. One container rather than the usual three
+  # because the laptop budget does not stretch to a separate worker and triggerer
+  # for a DAG with nine short tasks.
+  # ---------------------------------------------------------------------------
+  airflow:
+    build: {context: ., dockerfile: docker/airflow/Dockerfile}
+    image: fleet/airflow:1.0.0
+    container_name: fleet-airflow
+    <<: *fleet-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      simclock-init: {condition: service_completed_successfully}
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${AIRFLOW_DB}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: "30"
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+      PYTHONPATH: /opt/fleet:/opt/airflow/dags
+      # Batch Spark jobs run in-process; keep the JVM small.
+      SPARK_LOCAL_IP: 127.0.0.1
+      PYSPARK_PYTHON: /usr/local/bin/python
+    entrypoint: ["/bin/bash", "/entrypoint/airflow_entrypoint.sh"]
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./docker/airflow/airflow_entrypoint.sh:/entrypoint/airflow_entrypoint.sh:ro
+      - ./batch:/opt/fleet/batch:ro
+      - ./common:/opt/fleet/common:ro
+      - airflowlogs:/opt/airflow/logs
+      - lake:/lake
+      - landing:/landing
+      - shared:/shared
+      - reports:/reports
+    ports: ["8088:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # SERVING (SPEC 9.2)
+  # ---------------------------------------------------------------------------
+  api:
+    build: {context: ., dockerfile: docker/app/Dockerfile}
+    image: fleet/app:1.0.0
+    container_name: fleet-api
+    <<: *fleet-env
+    command: ["python", "-m", "api.main"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      simclock-init: {condition: service_completed_successfully}
+    volumes:
+      - shared:/shared
+      - reports:/reports
+      - lake:/lake
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # OBSERVABILITY (SPEC 10)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: fleet-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+      - promdata:/prometheus
+    ports: ["9090:9090"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: fleet-alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./observability/alertmanager:/etc/alertmanager:ro
+    ports: ["9093:9093"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [fleet]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: fleet-grafana
+    <<: *fleet-env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"      # demo convenience; auth is out of scope
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_INSTALL_PLUGINS: ""
+      # Referenced by the provisioned PostgreSQL datasource.
+      PG_HOST: postgres:5432
+      PG_DB: ${POSTGRES_DB}
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: {condition: service_healthy}
+      prometheus: {condition: service_healthy}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["3000:3000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [fleet]
+    restart: unless-stopped

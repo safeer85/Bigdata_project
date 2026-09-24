@@ -1,0 +1,165 @@
+# Alert rules (SPEC 10.3). Every rule has a `for:`, a severity and a summary, and
+# every rule has a runbook entry in docs/runbook.md keyed by the alert name.
+#
+# The `for:` durations are short (1-2 real minutes) on purpose. With COMPRESSION=60
+# one real minute is one simulated hour, so a "5 minute" production-style window
+# would be five simulated hours - far too slow to demonstrate in a viva. The
+# durations below are chosen to be longer than one scrape interval plus one Spark
+# micro-batch, which is what actually prevents flapping here.
+
+groups:
+
+  # =========================================================================
+  - name: ingestion
+    rules:
+      - alert: TelemetryNotProduced
+        # increase() over 1m is 0 when nothing at all was produced. `absent()`
+        # covers the different failure where the simulator is down entirely and
+        # the series disappears rather than going flat.
+        expr: |
+          sum(increase(fleet_events_produced_total[1m])) == 0
+          or absent(fleet_events_produced_total)
+        for: 1m
+        labels: {severity: critical, stage: ingestion}
+        annotations:
+          summary: "No telemetry events produced for over a minute"
+          description: >-
+            The telemetry simulator has produced no events in the last real minute
+            (one simulated hour). Either the producer is paused, it has crashed, or
+            it cannot reach the broker.
+          runbook: "docs/runbook.md#telemetrynotproduced"
+
+      - alert: DLQRateHigh
+        # Share of produced events that were rejected. Baseline is ~1% (0.5%
+        # malformed + 0.5% schema-invalid), so 2% means something new is broken.
+        expr: |
+          sum(rate(fleet_dlq_events_total[5m]))
+          / clamp_min(sum(rate(fleet_events_produced_total[5m])), 0.001) > 0.02
+        for: 2m
+        labels: {severity: warning, stage: ingestion}
+        annotations:
+          summary: "More than 2% of events are being dead-lettered"
+          description: >-
+            DLQ rate {{ $value | humanizePercentage }} over 5 minutes, against an
+            expected fault-injection baseline of about 1%.
+          runbook: "docs/runbook.md#dlqratehigh"
+
+  # =========================================================================
+  - name: processing
+    rules:
+      - alert: StreamStalled
+        # Two ways a stream stalls: it stops reporting progress at all, or it keeps
+        # reporting but processes nothing while events are still arriving.
+        expr: |
+          (time() - max by (query) (fleet_stream_last_progress_timestamp) > 120)
+          or (
+            max by (query) (fleet_stream_processed_rows_per_second) == 0
+            and on() (sum(rate(fleet_events_produced_total[2m])) > 0)
+          )
+        for: 2m
+        labels: {severity: critical, stage: processing}
+        annotations:
+          summary: "Streaming query {{ $labels.query }} has stalled"
+          description: >-
+            No micro-batch progress for over 2 minutes, or the query is processing
+            0 rows/s while the producer is still emitting.
+          runbook: "docs/runbook.md#streamstalled"
+
+      - alert: StreamLagHigh
+        # Spark does not commit consumer-group offsets, so this comes from the
+        # query's own Kafka source metrics, not from a Kafka lag exporter.
+        expr: max by (query) (fleet_stream_offsets_behind_latest) > 5000
+        for: 2m
+        labels: {severity: warning, stage: processing}
+        annotations:
+          summary: "Query {{ $labels.query }} is {{ $value }} offsets behind Kafka"
+          description: >-
+            The speed layer is falling behind the producer. At 50 vehicles emitting
+            every 2 seconds, a sustained backlog above 5000 offsets means the
+            micro-batch cannot keep up.
+          runbook: "docs/runbook.md#streamlaghigh"
+
+  # =========================================================================
+  - name: batch
+    rules:
+      - alert: ExpenseFileLate
+        expr: fleet_expense_file_late > 0
+        for: 1m
+        labels: {severity: warning, stage: orchestration}
+        annotations:
+          summary: "An expense file missed its SLA"
+          description: >-
+            The most recent reconciliation found no expense file within
+            EXPENSE_SLA_SIM_MIN of the simulated day closing. Profitability for
+            that day cannot be computed until the partner delivers.
+          runbook: "docs/runbook.md#expensefilelate"
+
+      - alert: BatchRunFailed
+        expr: fleet_batch_run_failed > 0
+        for: 1m
+        labels: {severity: critical, stage: orchestration}
+        annotations:
+          summary: "The last fleet_daily_reconciliation run failed"
+          description: "Check the Airflow UI at :8088 for the failing task's log."
+          runbook: "docs/runbook.md#batchrunfailed"
+
+      - alert: BatchNotRunRecently
+        # The DAG is scheduled every 2 real minutes, but it short-circuits when no
+        # date is pending, and a simulated day takes 24 real minutes. 45 minutes
+        # is therefore comfortably longer than a healthy quiet period.
+        expr: |
+          (time() - fleet_batch_last_success_timestamp > 2700)
+          or absent(fleet_batch_last_success_timestamp)
+        for: 2m
+        labels: {severity: warning, stage: orchestration}
+        annotations:
+          summary: "No successful batch reconciliation in the last 45 minutes"
+          description: >-
+            A simulated day closes every 24 real minutes, so a gap this long means
+            the DAG is stuck, paused, or never finding a pending date.
+          runbook: "docs/runbook.md#batchnotrunrecently"
+
+      - alert: SpeedBatchDriftHigh
+        # Some drift is EXPECTED and is evidence for the report: ~2% of events are
+        # injected late and the speed layer's watermark drops the worst of them.
+        # 5% is the point at which the cause is no longer just the watermark.
+        expr: abs(fleet_speed_batch_drift_ratio) > 0.05
+        for: 2m
+        labels: {severity: warning, stage: processing}
+        annotations:
+          summary: "Speed and batch revenue differ by more than 5%"
+          description: >-
+            Drift is {{ $value | humanizePercentage }}. A small, positive drift
+            (batch above speed) is the expected watermark effect; a large or
+            negative drift means the speed layer is double-counting or the batch
+            layer is reading an incomplete archive.
+          runbook: "docs/runbook.md#speedbatchdrifthigh"
+
+  # =========================================================================
+  - name: serving
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels: {severity: critical, stage: serving}
+        annotations:
+          summary: "The serving API is not reachable"
+          description: "Prometheus cannot scrape api:8000. The dashboards are blind."
+          runbook: "docs/runbook.md#apidown"
+
+  # =========================================================================
+  # Business alert, not an infrastructure one: the pipeline is healthy but the
+  # fleet is not earning.
+  - name: business
+    rules:
+      - alert: IdleVehiclesHigh
+        expr: fleet_open_idle_alerts > 8
+        for: 2m
+        labels: {severity: warning, stage: serving}
+        annotations:
+          summary: "{{ $value }} vehicles have been idle past the alert threshold"
+          description: >-
+            More than 8 vehicles have been idle for over IDLE_ALERT_SIM_MIN
+            simulated minutes at once. Either demand has collapsed in some zone or
+            too many vehicles are positioned in cold zones.
+          runbook: "docs/runbook.md#idlevehicleshigh"
