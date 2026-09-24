@@ -375,10 +375,9 @@ services:
       # Batch Spark jobs run in-process; keep the JVM small.
       SPARK_LOCAL_IP: 127.0.0.1
       PYSPARK_PYTHON: /usr/local/bin/python
-    entrypoint: ["/bin/bash", "/entrypoint/airflow_entrypoint.sh"]
+    entrypoint: ["/bin/bash", "/opt/fleet/bin/airflow_entrypoint.sh"]
     volumes:
       - ./airflow/dags:/opt/airflow/dags:ro
-      - ./docker/airflow/airflow_entrypoint.sh:/entrypoint/airflow_entrypoint.sh:ro
       - ./batch:/opt/fleet/batch:ro
       - ./common:/opt/fleet/common:ro
       - airflowlogs:/opt/airflow/logs

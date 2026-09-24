@@ -27,9 +27,16 @@ COPY docker/airflow/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 USER root
+# The entrypoint is COPIED into the image, not bind-mounted from the host.
+# Bind-mounting a single file over a path that does not exist in the image fails
+# on Docker Desktop, and a Windows checkout could hand the container a CRLF
+# script that bash refuses to run. It lives under /opt/fleet/bin, a directory
+# this image already owns.
+RUN mkdir -p /opt/fleet/bin /lake /landing /shared /reports
+COPY docker/airflow/airflow_entrypoint.sh /opt/fleet/bin/airflow_entrypoint.sh
 COPY common/ /opt/fleet/common/
 COPY batch/ /opt/fleet/batch/
-RUN mkdir -p /opt/fleet /lake /landing /shared /reports \
+RUN chmod +x /opt/fleet/bin/airflow_entrypoint.sh \
     && chown -R airflow:root /opt/fleet /lake /landing /shared /reports
 
 USER airflow
