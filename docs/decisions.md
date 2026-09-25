@@ -433,6 +433,21 @@ pick.
 
 ---
 
+## 21b. **[corrected]** The expense SLA applies to the first delivery, not to corrections
+
+**What happened.** After `make demo-resubmit`, the recomputed run came back with
+`expense_file_late = true`. The check compared the file's timestamp against
+`day_close + EXPENSE_SLA_SIM_MIN`, and a v2 correction is *always* sent long after that.
+
+**Why it matters.** `ExpenseFileLate` would have fired on every single resubmission. An alert
+that fires on a normal, expected, deliberately-demonstrated operation is noise, and noise is
+how alerts get ignored.
+
+**Decision.** Only version 1 is assessed against the SLA. The SLA is a promise about
+*delivery*; a correction is a different event with no SLA of its own.
+
+---
+
 ## 22. Every published host port is configurable
 
 **Decision.** `GRAFANA_HOST_PORT`, `PROMETHEUS_HOST_PORT`, `SPARK_MASTER_UI_PORT`,

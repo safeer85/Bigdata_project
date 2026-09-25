@@ -19,7 +19,7 @@ recomputes that specific date, which is the backfill demo.
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 # The batch modules and `common` are installed at /opt/fleet in the image.
@@ -188,15 +188,24 @@ with DAG(
                 run_tasks.mark_failed(run_id, f"expense file not found: {path}")
                 raise FileNotFoundError(path)
 
-            # Late means "arrived after the SLA", which we judge from the file's
-            # own mtime translated back into simulated time.
-            written_real = datetime.fromtimestamp(os.path.getmtime(path))
-            import pytz
-
-            written_real = written_real.replace(tzinfo=pytz.UTC)
-            written_sim = simclock.get_clock().now_sim(written_real)
-            _, day_end = simclock.day_bounds(sim_date)
-            late = written_sim > day_end + timedelta(minutes=config.EXPENSE_SLA_SIM_MIN)
+            # Late means "the partner's FIRST delivery arrived after the SLA",
+            # judged from the file's own mtime translated back into simulated time.
+            #
+            # Only version 1 is assessed. A corrected v2 is by definition sent
+            # after the original, so scoring it against the same SLA marked every
+            # resubmission as late -- which meant `make demo-resubmit` always
+            # tripped ExpenseFileLate. The SLA governs delivery, not corrections.
+            if version <= 1:
+                written_real = datetime.fromtimestamp(
+                    os.path.getmtime(path), tz=timezone.utc
+                )
+                written_sim = simclock.get_clock().now_sim(written_real)
+                _, day_end = simclock.day_bounds(sim_date)
+                late = written_sim > day_end + timedelta(
+                    minutes=config.EXPENSE_SLA_SIM_MIN
+                )
+            else:
+                late = False
 
             if late:
                 run_tasks.db.execute(

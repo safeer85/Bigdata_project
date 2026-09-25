@@ -171,6 +171,11 @@ fleet_expense_file_late > 0
 simulated day closing. Profitability for that day **cannot be computed** until the partner
 delivers. The telemetry half is unaffected.
 
+**The SLA applies to the FIRST delivery only.** A corrected `v2` file is by definition sent
+after the original, so scoring it against the same SLA would mark every resubmission late and
+this alert would fire on every `make demo-resubmit`. The SLA governs delivery, not corrections
+(`tests/test_batch_scheduling.py::test_the_sla_applies_to_the_first_delivery_not_to_corrections`).
+
 **Reproduce.**
 ```bash
 make demo-late-file        # holds the next file past its SLA
