@@ -50,6 +50,8 @@ class TelemetryService:
         self.current_sim_date = simclock.sim_date(self.last_sim_ts)
 
         os.makedirs(config.ODOMETER_DIR, exist_ok=True)
+        self._ticks_since_checkpoint = 0
+        self._restore_odometers()
         self._install_signal_handlers()
 
     # --- lifecycle ---------------------------------------------------------
@@ -69,6 +71,63 @@ class TelemetryService:
 
     # --- odometer ledger ---------------------------------------------------
 
+    def _partial_path(self, sim_date: str) -> str:
+        """Where the in-progress ledger for an OPEN simulated day is kept."""
+        return os.path.join(config.ODOMETER_DIR, f"{sim_date}.partial.json")
+
+    def _restore_odometers(self) -> None:
+        """Reload the current day's odometers after a container restart.
+
+        Without this, a restart mid-day silently resets every vehicle's km to
+        zero. The ledger written at midnight would then cover only the time since
+        the restart, while the Parquet archive still holds the whole day -- so
+        `distance_covered` would come out far below `gps_km` and the batch layer
+        would flag half the fleet for a distance mismatch that never happened.
+        The check exists to catch a partner misreporting distance; it must not
+        fire because of our own restart.
+        """
+        path = self._partial_path(self.current_sim_date)
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, encoding="utf-8") as handle:
+                saved = json.load(handle)
+        except (OSError, ValueError):
+            log.warning(
+                "could not read the partial odometer ledger; starting from zero",
+                extra={"event": "odometer_restore_failed",
+                       "sim_date": self.current_sim_date},
+            )
+            return
+
+        restored = 0
+        for vehicle_id, km in saved.items():
+            state = self.sim.fleet.get(vehicle_id)
+            if state is not None:
+                state.odometer_km = float(km)
+                restored += 1
+        log.info(
+            "odometer ledger restored after restart",
+            extra={"event": "odometer_restored", "sim_date": self.current_sim_date,
+                   "vehicles": restored,
+                   "total_km": round(sum(saved.values()), 1)},
+        )
+
+    def _checkpoint_odometer(self) -> None:
+        """Persist the open day's odometers so a restart can resume them."""
+        path = self._partial_path(self.current_sim_date)
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as handle:
+                json.dump(self.sim.odometer_snapshot(), handle)
+            os.replace(tmp, path)
+        except OSError:
+            log.warning(
+                "could not checkpoint the odometer ledger",
+                extra={"event": "odometer_checkpoint_failed"},
+            )
+
+
     def _write_odometer(self, sim_date: str) -> None:
         """Write the ground-truth km ledger for a closed simulated day.
 
@@ -83,6 +142,11 @@ class TelemetryService:
         with open(tmp, "w", encoding="utf-8") as handle:
             json.dump(snapshot, handle, indent=1)
         os.replace(tmp, path)
+
+        # The day is sealed; the in-progress copy is no longer needed.
+        partial = self._partial_path(sim_date)
+        if os.path.exists(partial):
+            os.remove(partial)
 
         total = round(sum(snapshot.values()), 1)
         log.info(
@@ -102,6 +166,15 @@ class TelemetryService:
         if today != self.current_sim_date:
             self._write_odometer(self.current_sim_date)
             self.current_sim_date = today
+            return
+
+        # Checkpoint the open day every ~30 real seconds. 50 floats is nothing to
+        # write, and it bounds how much of the ledger a restart can lose to one
+        # checkpoint interval instead of the whole day so far.
+        self._ticks_since_checkpoint += 1
+        if self._ticks_since_checkpoint * config.EMIT_INTERVAL_REAL_S >= 30:
+            self._checkpoint_odometer()
+            self._ticks_since_checkpoint = 0
 
     # --- the main loop -----------------------------------------------------
 

@@ -11,14 +11,70 @@ service a different epoch, so their windows would never line up.
 """
 from __future__ import annotations
 
+import os
+import stat
+
 from common import config, simclock
 from common.logging import get_logger
 
 log = get_logger("simclock-init", stage="orchestration")
 
+# Volumes shared between containers that run as DIFFERENT users:
+#   fleet/app    uid 10001  (simulators, API)
+#   fleet/spark  uid 185    (spark master, worker, both streaming apps)
+#   fleet/airflow uid 50000 (Airflow and the batch jobs)
+#
+# Docker initialises a new named volume from whichever image mounts it first,
+# inheriting that image's ownership -- so which container happens to start first
+# decides whether the others can write. That is a race, and it failed exactly
+# that way on a clean `make up`. This one-shot init container runs as root and
+# opens the permissions up front, which is what init containers are for.
+SHARED_VOLUMES = ["/shared", "/lake", "/landing", "/reports"]
+
+
+def prepare_volumes() -> None:
+    """Create the shared directories and make them writable by every service."""
+    for path in SHARED_VOLUMES:
+        if not os.path.isdir(path):
+            continue
+        try:
+            os.makedirs(path, exist_ok=True)
+            # 0o777 on a single-host demo volume. The alternative -- a shared
+            # group id baked into three different base images -- would be more
+            # correct in production and far more fragile here. Noted in
+            # docs/decisions.md.
+            os.chmod(path, 0o777)
+        except PermissionError:
+            log.warning(
+                "could not adjust permissions (not running as root?)",
+                extra={"event": "volume_prepare_skipped", "path": path},
+            )
+            continue
+
+    # Subdirectories the simulators and the batch layer write into.
+    for path in (config.ODOMETER_DIR, config.EXPENSE_DIR):
+        try:
+            os.makedirs(path, exist_ok=True)
+            os.chmod(path, 0o777)
+        except (PermissionError, OSError):
+            pass
+
+    log.info(
+        "shared volumes prepared",
+        extra={
+            "event": "volumes_prepared",
+            "volumes": {
+                p: stat.filemode(os.stat(p).st_mode)
+                for p in SHARED_VOLUMES
+                if os.path.isdir(p)
+            },
+        },
+    )
+
 
 def main() -> None:
-    existed = __import__("os").path.exists(simclock.CLOCK_FILE)
+    prepare_volumes()
+    existed = os.path.exists(simclock.CLOCK_FILE)
     clock = simclock.write_clock_file()
     log.info(
         "simulated clock ready",

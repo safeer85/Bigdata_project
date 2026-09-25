@@ -24,6 +24,7 @@ from pyspark.sql import functions as F
 from common import config, schemas
 from common.logging import get_logger
 from streaming.listener import PrometheusQueryListener, start_metrics_server
+from streaming.watchdog import ProgressWatchdog
 
 log = get_logger("archiver", stage="processing")
 
@@ -135,7 +136,14 @@ def main() -> int:
     )
 
     log.info("archiver query started", extra={"event": "query_started", "id": str(query.id)})
-    query.awaitTermination()
+
+    # NOT `query.awaitTermination()`. A driver that loses its connection to the
+    # Spark master keeps the query "active" while never running another batch, so
+    # awaitTermination would block forever on a dead archiver -- which is exactly
+    # how we silently lost half a simulated day of the master dataset once.
+    # The watchdog fails the process instead, and Docker restarts it from the
+    # checkpoint. The trigger is 30s, so 180s of silence is unambiguous.
+    ProgressWatchdog([query], log, stall_seconds=180, grace_seconds=240).run()
     return 0
 
 

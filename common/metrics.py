@@ -122,6 +122,10 @@ EXPENSE_FILE_LATE = Gauge(
     "fleet_expense_file_late",
     "1 when the most recent expense file missed its SLA, else 0",
 )
+BATCH_RUN_FAILED = Gauge(
+    "fleet_batch_run_failed",
+    "1 when the most recent batch run ended in failure, else 0. Drives BatchRunFailed.",
+)
 SPEED_BATCH_DRIFT = Gauge(
     "fleet_speed_batch_drift_ratio",
     "Relative difference between speed-layer and batch-layer fleet revenue for the "

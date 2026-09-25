@@ -31,6 +31,7 @@ from common import config, schemas, simclock, validation
 from common.logging import get_logger
 from streaming import sinks, state
 from streaming.listener import PrometheusQueryListener, start_metrics_server
+from streaming.watchdog import ProgressWatchdog
 
 log = get_logger("speed", stage="processing")
 
@@ -420,10 +421,12 @@ def main() -> int:
                "queries": [q.name for q in queries]},
     )
 
-    # Block on ANY query terminating, so that one failed query takes the whole
-    # application down and Docker restarts it, rather than leaving a half-dead
-    # speed layer silently serving stale tables.
-    spark.streams.awaitAnyTermination()
+    # Watch every query rather than blocking on `awaitAnyTermination`. A query
+    # that stops progressing without terminating -- a lost executor, a
+    # disconnected driver -- would otherwise leave a half-dead speed layer
+    # serving stale tables while its healthcheck stayed green. Any stalled query
+    # fails the whole application so Docker restarts it from the checkpoints.
+    ProgressWatchdog(queries, log, stall_seconds=120, grace_seconds=240).run()
     return 0
 
 

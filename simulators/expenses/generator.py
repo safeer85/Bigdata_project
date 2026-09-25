@@ -22,11 +22,15 @@ from typing import Dict, List, Optional
 from common import config
 from simulators.telemetry.fleet import build_fleet
 
-# Reason: a service visit is a big, lumpy cost that lands on one day. Without it
-# every vehicle's maintenance cost would be small and uniform, and the
-# `in_service` flag in the report would never be exercised.
-SERVICE_COST_MIN = 1800.0
-SERVICE_COST_MAX = 6500.0
+# A service visit is a big, lumpy cost that lands on one day. Without it every
+# vehicle's maintenance cost would be small and uniform and the `in_service` flag
+# would never be exercised.
+#
+# The range is CALIBRATED against a vehicle's daily revenue (~550-1100 CU). An
+# earlier version used 1800-6500, which was 3-6x a day's earnings: every serviced
+# vehicle became catastrophically unprofitable and the report's "requires
+# attention" list was just "whoever visited the garage today", drowning the
+# genuine lemons. See docs/decisions.md.
 
 
 def load_odometer(sim_date: str) -> Dict[str, float]:
@@ -71,11 +75,18 @@ def build_rows(
 
         # --- maintenance --------------------------------------------------
         # Usually a small per-km wear charge; occasionally a real service event.
+        # Three components, because they behave differently and the report needs
+        # to distinguish them:
+        #   standing   a flat daily charge (lease, insurance) owed even if the
+        #              vehicle never moves -- this is what makes a low-demand
+        #              vehicle genuinely unprofitable rather than merely quiet,
+        #              which is the business question the project answers;
+        #   wear       per-km, proportional to how hard the vehicle worked;
+        #   service    an occasional lumpy garage visit.
         service_flag = rng.random() < profile.maintenance_propensity
+        maintenance = config.MAINT_DAILY_STANDING + true_km * rng.uniform(0.4, 1.6)
         if service_flag:
-            maintenance = rng.uniform(SERVICE_COST_MIN, SERVICE_COST_MAX)
-        else:
-            maintenance = true_km * rng.uniform(0.4, 1.6)
+            maintenance += rng.uniform(config.SERVICE_COST_MIN, config.SERVICE_COST_MAX)
 
         # --- reported distance --------------------------------------------
         # Normally within +-3% of the truth (odometer rounding, GPS drift).

@@ -43,8 +43,17 @@ services:
     container_name: fleet-simclock-init
     <<: *fleet-env
     command: ["python", "-m", "scripts.simclock_init"]
+    # Runs as root, unlike every other service. Its second job is to open up the
+    # permissions on the shared volumes: the app, spark and airflow images run as
+    # three different uids, and a fresh named volume inherits its ownership from
+    # whichever container mounts it first. That is a start-order race, and it is
+    # exactly what broke a clean `make up` before this was added.
+    user: "0:0"
     volumes:
       - shared:/shared
+      - lake:/lake
+      - landing:/landing
+      - reports:/reports
     networks: [fleet]
     restart: "no"
 
@@ -112,7 +121,7 @@ services:
       KAFKA_HEAP_OPTS: "-Xms256m -Xmx768m"
     volumes:
       - kafkadata:/var/lib/kafka/data
-    ports: ["29092:29092"]
+    ports: ["${KAFKA_HOST_PORT:-29092}:29092"]
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
       interval: 10s
@@ -146,7 +155,7 @@ services:
       KAFKA_CLUSTERS_0_NAME: fleet
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: "true"
-    ports: ["8090:8080"]
+    ports: ["${KAFKA_UI_HOST_PORT:-8090}:8080"]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
@@ -172,8 +181,8 @@ services:
     volumes:
       - shared:/shared
     ports:
-      - "8001:8001"    # Prometheus metrics
-      - "8010:8010"    # demo control endpoint (force_idle / pause / resume)
+      - "${TELEMETRY_METRICS_HOST_PORT:-8001}:8001"    # Prometheus metrics
+      - "${TELEMETRY_CONTROL_HOST_PORT:-8010}:8010"    # demo control (force_idle / pause / resume)
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=3)\""]
       interval: 15s
@@ -195,8 +204,8 @@ services:
       - shared:/shared
       - landing:/landing
     ports:
-      - "8002:8002"    # Prometheus metrics
-      - "8011:8011"    # demo control endpoint (resubmit / delay-next)
+      - "${EXPENSE_METRICS_HOST_PORT:-8002}:8002"    # Prometheus metrics
+      - "${EXPENSE_CONTROL_HOST_PORT:-8011}:8011"    # demo control (resubmit / delay-next)
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=3)\""]
       interval: 15s
@@ -219,8 +228,8 @@ services:
     environment:
       SPARK_NO_DAEMONIZE: "true"
     ports:
-      - "8080:8080"    # master UI
-      - "7077:7077"
+      - "${SPARK_MASTER_UI_PORT:-8080}:8080"    # master UI
+      - "${SPARK_MASTER_PORT:-7077}:7077"
     volumes:
       - lake:/lake
       - shared:/shared
@@ -289,7 +298,7 @@ services:
       - /opt/fleet/streaming/archiver.py
     environment:
       PYTHONPATH: /opt/fleet
-    ports: ["8004:8004", "4041:4040"]
+    ports: ["${ARCHIVER_METRICS_HOST_PORT:-8004}:8004", "${ARCHIVER_UI_HOST_PORT:-4041}:4040"]
     volumes:
       - lake:/lake
       - shared:/shared
@@ -335,7 +344,7 @@ services:
       - /opt/fleet/streaming/speed.py
     environment:
       PYTHONPATH: /opt/fleet
-    ports: ["8003:8003", "4040:4040"]
+    ports: ["${SPEED_METRICS_HOST_PORT:-8003}:8003", "${SPEED_UI_HOST_PORT:-4040}:4040"]
     volumes:
       - lake:/lake
       - shared:/shared
@@ -385,7 +394,7 @@ services:
       - landing:/landing
       - shared:/shared
       - reports:/reports
-    ports: ["8088:8080"]
+    ports: ["${AIRFLOW_HOST_PORT:-8088}:8080"]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health >/dev/null || exit 1"]
       interval: 20s
@@ -411,7 +420,7 @@ services:
       - shared:/shared
       - reports:/reports
       - lake:/lake
-    ports: ["8000:8000"]
+    ports: ["${API_HOST_PORT:-8000}:8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)\""]
       interval: 15s
@@ -435,7 +444,7 @@ services:
     volumes:
       - ./observability/prometheus:/etc/prometheus:ro
       - promdata:/prometheus
-    ports: ["9090:9090"]
+    ports: ["${PROMETHEUS_HOST_PORT:-9090}:9090"]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9090/-/healthy || exit 1"]
       interval: 15s
@@ -453,7 +462,7 @@ services:
       - --storage.path=/alertmanager
     volumes:
       - ./observability/alertmanager:/etc/alertmanager:ro
-    ports: ["9093:9093"]
+    ports: ["${ALERTMANAGER_HOST_PORT:-9093}:9093"]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9093/-/healthy || exit 1"]
       interval: 15s
@@ -486,7 +495,7 @@ services:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafanadata:/var/lib/grafana
-    ports: ["3000:3000"]
+    ports: ["${GRAFANA_HOST_PORT:-3000}:3000"]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health || exit 1"]
       interval: 15s

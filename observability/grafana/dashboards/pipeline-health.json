@@ -1,0 +1,438 @@
+{
+  "uid": "pipeline-health",
+  "title": "Pipeline health",
+  "description": "The engineering view (SPEC 10.4): throughput per stage, Kafka lag, DLQ rate, watermark drops, batch task durations, speed-vs-batch drift and alert state.",
+  "tags": ["fleet", "observability"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Throughput per stage",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Ingestion - events produced per second",
+      "description": "By event type. One axis: all three series are the same unit.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (event_type) (rate(fleet_events_produced_total[1m]))",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "pointSize": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Processing - rows per second, per streaming query",
+      "description": "Input vs processed rate for each Spark query. A processed rate of 0 while events are still being produced is what StreamStalled watches for.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_stream_processed_rows_per_second",
+          "legendFormat": "{{query}} processed"
+        },
+        {
+          "refId": "B",
+          "expr": "fleet_stream_input_rows_per_second",
+          "legendFormat": "{{query}} input"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rowsps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Kafka offsets behind latest",
+      "description": "Read from Spark's own query progress. Spark does NOT commit consumer-group offsets, so an ordinary Kafka lag exporter reports nothing for these consumers.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_stream_offsets_behind_latest",
+          "legendFormat": "{{query}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "DLQ rate",
+      "description": "Share of produced events routed to the dead-letter topic. Baseline ~1% is the injected fault rate; DLQRateHigh fires above 2%.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(fleet_dlq_events_total[5m])) / clamp_min(sum(rate(fleet_events_produced_total[5m])), 0.001)",
+          "legendFormat": "DLQ share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.02 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "DLQ events by reason",
+      "description": "Reason codes come from common/validation.py, shared with the batch layer.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason) (increase(fleet_dlq_events_total[5m]))",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal", "group": "A" },
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["sum"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Consistency - the Lambda evidence",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Rows dropped by the watermark",
+      "description": "EXPECTED to be non-zero. ~2% of events are injected late by up to 20 simulated minutes against a 10-minute watermark, so the speed layer drops some. This is the measured reason the batch layer is the authoritative one.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (query) (increase(fleet_late_rows_dropped_total[5m]))",
+          "legendFormat": "{{query}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 70, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["sum"] },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Speed vs batch revenue drift",
+      "description": "(batch - speed) / batch for the most recently reconciled day. A small POSITIVE drift is healthy: it is the watermark's effect. Negative would mean the speed layer double-counted; above 5% fires SpeedBatchDriftHigh.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 18 },
+      "targets": [{ "refId": "A", "expr": "fleet_speed_batch_drift_ratio", "legendFormat": "drift" }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "graphMode": "area",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Pipeline freshness",
+      "description": "Seconds since each streaming query last completed a micro-batch. StreamStalled fires above 120s.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - fleet_stream_last_progress_timestamp",
+          "legendFormat": "{{query}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 120 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Batch layer and alerting",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Batch task durations (last successful run)",
+      "description": "Exported by the API from batch_runs. Airflow tasks are short-lived, so Prometheus could never scrape them directly - no Pushgateway needed.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 9, "w": 10, "x": 0, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_batch_task_duration_seconds",
+          "legendFormat": "{{task}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 60 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Batch layer state",
+      "description": "Time since the last successful reconciliation, quarantined rows, and the late-file flag.",
+      "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
+      "gridPos": { "h": 9, "w": 7, "x": 10, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - fleet_batch_last_success_timestamp",
+          "legendFormat": "since last success",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "fleet_batch_quarantined_rows",
+          "legendFormat": "quarantined rows",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "fleet_expense_file_late",
+          "legendFormat": "expense file late",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "vertical",
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byFrameRefID", "options": "A" },
+            "properties": [
+              { "id": "unit", "value": "s" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 1800 },
+                    { "color": "red", "value": 2700 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byFrameRefID", "options": "C" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "0": { "color": "green", "text": "on time", "index": 0 }, "1": { "color": "red", "text": "LATE", "index": 1 } } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Alerts delivered to the API webhook",
+      "description": "Proof of DELIVERY, not just of firing: Alertmanager posts to /alerts/webhook and the API stores each notification.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 9, "w": 7, "x": 17, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT alertname AS \"Alert\", severity AS \"Severity\", status AS \"State\", received_at AS \"Received\" FROM alert_notifications ORDER BY received_at DESC LIMIT 25"
+        }
+      ],
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "State" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "firing": { "color": "red", "index": 0 },
+                      "resolved": { "color": "green", "index": 1 }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

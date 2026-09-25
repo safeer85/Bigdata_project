@@ -1,0 +1,472 @@
+{
+  "uid": "fleet-operations",
+  "title": "Fleet operations",
+  "description": "The business view. Reads the serving tables directly: rt_* panels are SPEED-layer (live, approximate), batch_* panels are BATCH-layer (exact, once a simulated day has closed).",
+  "tags": ["fleet", "business"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "sim_date",
+        "label": "Simulated date",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+        "query": "SELECT DISTINCT sim_date::text AS __text, sim_date::text AS __value FROM batch_vehicle_daily ORDER BY 1 DESC",
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Live fleet (speed layer - approximate, seconds old)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active vehicles",
+      "description": "Vehicles that reported within the last 5 SIMULATED minutes and are not offline.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT active_vehicles AS \"Active\" FROM v_fleet_live"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "graphMode": "none",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "green", "value": 12 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Idle ratio",
+      "description": "Share of active vehicles currently idle. High idle means the fleet is positioned away from demand.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT idle_ratio AS \"Idle ratio\" FROM v_fleet_live"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "graphMode": "none",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 0.7 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "On trip",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT on_trip_vehicles AS \"On trip\" FROM v_fleet_live"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "graphMode": "none",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Open idle alerts",
+      "description": "Vehicles idle past the IDLE_ALERT_SIM_MIN threshold. Status colours: green healthy, yellow watch, red intervene.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Open alerts\" FROM idle_alerts WHERE status = 'open'"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "graphMode": "none",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 4 },
+              { "color": "red", "value": 9 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Earnings this simulated hour",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH n AS (SELECT max(last_event_time) AS ts FROM rt_vehicle_state) SELECT COALESCE(round(sum(z.earnings)::numeric, 2), 0) AS \"Earnings (CU)\" FROM rt_zone_hourly z, n WHERE z.window_start = date_trunc('hour', n.ts)"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "graphMode": "none",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "geomap",
+      "title": "Vehicle positions, coloured by status",
+      "description": "Identity encoding: one fixed hue per status, never cycled. idle=amber, enroute=blue, on_trip=green, offline=grey.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT vehicle_id, status, zone_id, lat, lon, round(speed::numeric,1) AS speed, alert_open FROM v_vehicle_map"
+        }
+      ],
+      "options": {
+        "view": { "id": "coords", "lat": 12.98, "lon": 77.6, "zoom": 11 },
+        "basemap": { "type": "default", "name": "Basemap" },
+        "controls": { "showZoom": true, "showAttribution": true },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Vehicles",
+            "location": { "mode": "coords", "latitude": "lat", "longitude": "lon" },
+            "config": {
+              "style": {
+                "size": { "fixed": 6 },
+                "color": { "field": "status", "fixed": "dark-blue" },
+                "opacity": 0.9,
+                "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }
+              },
+              "showLegend": true
+            },
+            "tooltip": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "status" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "idle": { "color": "orange", "index": 0, "text": "idle" },
+                      "enroute": { "color": "blue", "index": 1, "text": "enroute" },
+                      "on_trip": { "color": "green", "index": 2, "text": "on trip" },
+                      "offline": { "color": "text", "index": 3, "text": "offline" }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Zones now",
+      "description": "Per zone: active vehicles, idle ratio, trips and earnings this simulated hour.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT zone_id AS \"Zone\", active_vehicles AS \"Active\", idle_vehicles AS \"Idle\", on_trip_vehicles AS \"On trip\", idle_ratio AS \"Idle ratio\", trips_this_hour AS \"Trips/h\", round(earnings_this_hour::numeric,2) AS \"Earnings\" FROM v_zone_live ORDER BY \"Earnings\" DESC"
+        }
+      ],
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "fieldConfig": {
+        "defaults": { "align": "auto", "custom": { "align": "right", "filterable": false } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Idle ratio" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.5 },
+                    { "color": "red", "value": 0.75 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Earnings" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "gauge", "mode": "gradient" }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "heatmap",
+      "title": "Earnings by zone and hour of day",
+      "description": "Magnitude encoding, so a SINGLE-hue sequential ramp (light to dark), never a rainbow. Rows are zones, columns are simulated hours.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT zone_id AS \"Zone\", sim_hour AS \"Hour\", round(sum(earnings)::numeric,2) AS \"Earnings\" FROM rt_zone_hourly WHERE sim_date = (SELECT max(sim_date) FROM rt_zone_hourly) GROUP BY zone_id, sim_hour ORDER BY zone_id, sim_hour"
+        }
+      ],
+      "options": {
+        "calculate": false,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Blues",
+          "steps": 32,
+          "reverse": false,
+          "exponent": 0.5,
+          "fill": "dark-blue"
+        },
+        "cellGap": 2,
+        "yAxis": { "axisPlacement": "left" },
+        "legend": { "show": true },
+        "tooltip": { "show": true, "yHistogram": false },
+        "rowsFrame": { "layout": "auto" }
+      },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Open idle alerts",
+      "description": "Raised by the speed layer's per-vehicle state machine after IDLE_ALERT_SIM_MIN simulated minutes of idling.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT vehicle_id AS \"Vehicle\", zone_id AS \"Zone\", round(idle_sim_minutes::numeric,1) AS \"Idle (sim min)\", opened_at AS \"Opened (sim)\" FROM idle_alerts WHERE status = 'open' ORDER BY idle_sim_minutes DESC"
+        }
+      ],
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "right" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Idle (sim min)" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "yellow", "value": null },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Profitability (batch layer - exact, after the simulated day closes)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Latest reconciliation - $sim_date",
+      "description": "One row per vehicle for the selected reconciled day, with the flags the daily report is built from.",
+      "datasource": { "type": "postgres", "uid": "fleet-postgres" },
+      "gridPos": { "h": 13, "w": 24, "x": 0, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT vehicle_id AS \"Vehicle\", trips AS \"Trips\", round(revenue::numeric,2) AS \"Revenue\", round(cost::numeric,2) AS \"Cost\", round(net_profit::numeric,2) AS \"Net profit\", margin AS \"Margin\", utilization AS \"Utilization\", round(gps_km::numeric,1) AS \"GPS km\", round(distance_covered::numeric,1) AS \"Reported km\", CASE WHEN unprofitable THEN 'unprofitable' WHEN becoming_unprofitable THEN 'declining' WHEN low_margin THEN 'low margin' WHEN distance_mismatch THEN 'distance mismatch' WHEN in_service THEN 'in service' WHEN missing_costs THEN 'no costs' WHEN missing_telemetry THEN 'no telemetry' ELSE 'ok' END AS \"Flag\" FROM batch_vehicle_daily WHERE sim_date = '$sim_date'::date ORDER BY net_profit ASC"
+        }
+      ],
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "right", "filterable": true } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Net profit" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": 0 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Margin" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "yellow", "value": 0.1 },
+                    { "color": "green", "value": 0.25 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Utilization" },
+            "properties": [{ "id": "unit", "value": "percentunit" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Flag" },
+            "properties": [
+              { "id": "custom.align", "value": "left" },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": { "color": "green", "index": 0 },
+                      "unprofitable": { "color": "red", "index": 1 },
+                      "declining": { "color": "red", "index": 2 },
+                      "low margin": { "color": "yellow", "index": 3 },
+                      "distance mismatch": { "color": "orange", "index": 4 },
+                      "in service": { "color": "text", "index": 5 },
+                      "no costs": { "color": "purple", "index": 6 },
+                      "no telemetry": { "color": "purple", "index": 7 }
+                    }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
