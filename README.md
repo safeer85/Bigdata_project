@@ -242,6 +242,7 @@ docs/            SPEC.md, report.md, decisions.md, runbook.md, walkthrough.md,
 
 | Document | Purpose |
 |---|---|
+| [`docs/demo-script.md`](docs/demo-script.md) | **Shot-by-shot script for recording the 7-minute demo video**, including how to hide the pipeline's real waits. |
 | [`docs/report.md`](docs/report.md) | **The written report.** The architecture argument and the measured evidence, structured against the marking criteria. |
 | [`docs/decisions.md`](docs/decisions.md) | Every non-trivial choice, alternatives considered, and the six defects found by running it. |
 | [`docs/walkthrough.md`](docs/walkthrough.md) | Module-by-module explanation in plain English, for viva preparation. |
