@@ -233,9 +233,20 @@ api/             FastAPI: app.py, queries.py, models.py, batch_metrics.py
 db/init/         PostgreSQL schema, indexes and views
 observability/   prometheus/ (config + 10 alert rules), alertmanager/, grafana/
 scripts/         simclock_init, create_topics, wait_for_stack, demo, smoke_test
-tests/           186 tests: unit, PySpark, API
-docs/            SPEC.md, decisions.md, runbook.md, walkthrough.md, report-assets/
+tests/           202 tests: unit, PySpark, API
+docs/            SPEC.md, report.md, decisions.md, runbook.md, walkthrough.md,
+                 report-assets/
 ```
+
+### Which document to read for what
+
+| Document | Purpose |
+|---|---|
+| [`docs/report.md`](docs/report.md) | **The written report.** The architecture argument and the measured evidence, structured against the marking criteria. |
+| [`docs/decisions.md`](docs/decisions.md) | Every non-trivial choice, alternatives considered, and the six defects found by running it. |
+| [`docs/walkthrough.md`](docs/walkthrough.md) | Module-by-module explanation in plain English, for viva preparation. |
+| [`docs/runbook.md`](docs/runbook.md) | One entry per alert: what it means, how to reproduce, how to fix. |
+| [`docs/report-assets/`](docs/report-assets/) | A real generated report, real API responses, SQL snapshots, screenshot checklist. |
 
 **`common/` is the answer to Lambda's best-known weakness.** The standard criticism is that
 the same business rule gets written twice — once for streaming, once for batch — and the two
