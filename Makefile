@@ -65,13 +65,17 @@ ps: ## Show container status and health
 	$(COMPOSE) ps
 
 test: ## Unit + PySpark + API tests (runs inside the airflow image, which has pyspark)
+	@# The airflow image ships common/ and batch/; the other packages under test are
+	@# mounted in. `streaming` is not optional: tests/test_vehicle_state.py imports
+	@# streaming.state, and leaving it out makes 17 tests fail at import time.
 	$(COMPOSE) run --rm --no-deps \
 	  -v "$(CURDIR)/tests:/opt/fleet/tests:ro" \
 	  -v "$(CURDIR)/api:/opt/fleet/api:ro" \
 	  -v "$(CURDIR)/simulators:/opt/fleet/simulators:ro" \
+	  -v "$(CURDIR)/streaming:/opt/fleet/streaming:ro" \
 	  -e PYTHONPATH=/opt/fleet \
 	  --entrypoint bash airflow -lc \
-	  "pip install --quiet pytest==8.3.3 httpx==0.27.2 fastapi==0.115.4 confluent-kafka==2.6.0 jsonschema==4.23.0 && cd /opt/fleet && python -m pytest tests -q"
+	  "cd /opt/fleet && python -m pytest tests -q"
 
 smoke: ## End-to-end smoke test against the running stack
 	python scripts/smoke_test.py

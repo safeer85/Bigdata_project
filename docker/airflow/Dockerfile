@@ -24,7 +24,15 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
 USER airflow
 
 COPY docker/airflow/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY docker/airflow/requirements-test.txt /tmp/requirements-test.txt
+# `make test` runs the suite in this image, so the test dependencies are baked in
+# rather than installed at run time.
+#
+# pip will warn that apache-airflow-providers-google wants pandas>=2.1.2 while we
+# pin 2.0.3. That warning is expected and harmless: we do not use that provider,
+# and 2.0.3 is pinned deliberately so `common/` and `batch/` behave identically
+# here and in the Spark image, which ships Python 3.8.
+RUN pip install --no-cache-dir -r /tmp/requirements.txt     && pip install --no-cache-dir -r /tmp/requirements-test.txt
 
 USER root
 # The entrypoint is COPIED into the image, not bind-mounted from the host.

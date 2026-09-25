@@ -70,9 +70,10 @@ switch ($Target) {
           -v "${PSScriptRoot}/tests:/opt/fleet/tests:ro" `
           -v "${PSScriptRoot}/api:/opt/fleet/api:ro" `
           -v "${PSScriptRoot}/simulators:/opt/fleet/simulators:ro" `
+          -v "${PSScriptRoot}/streaming:/opt/fleet/streaming:ro" `
           -e PYTHONPATH=/opt/fleet `
           --entrypoint bash airflow -lc `
-          "pip install --quiet pytest==8.3.3 httpx==0.27.2 fastapi==0.115.4 confluent-kafka==2.6.0 jsonschema==4.23.0 && cd /opt/fleet && python -m pytest tests -q"
+          "cd /opt/fleet && python -m pytest tests -q"
     }
     "smoke"          { python scripts/smoke_test.py }
     "demo-idle"      { python scripts/demo.py idle }

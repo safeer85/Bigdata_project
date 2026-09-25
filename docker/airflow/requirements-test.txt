@@ -1,0 +1,12 @@
+# Test-only dependencies, installed into the airflow image because `make test`
+# runs the suite there: it is the one image that has both pyspark and a Python
+# new enough for the API stack.
+#
+# Baked in at BUILD time rather than pip-installed on every `make test` run, so
+# the target is fast, works offline, and does not emit resolver warnings onto
+# stderr -- which PowerShell treats as a command failure.
+pytest==8.3.3
+httpx==0.27.2
+fastapi==0.115.4
+confluent-kafka==2.6.0
+jsonschema==4.23.0
