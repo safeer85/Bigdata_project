@@ -108,9 +108,16 @@ section.
 maintenance costs."
 
 **E2 — The "requires attention" table, zoomed.**
-*Caption:* "Each flagged vehicle with its reason. The lemons fail for three *different*
-reasons — poor fuel efficiency, frequent servicing, low demand — so the flags are not all one
-root cause."
+*Caption:* "Each flagged vehicle with its reason. The five 'lemon' vehicles are bad in three
+different ways — poor fuel efficiency, frequent servicing, low demand — so the flags do not all
+trace to one root cause. Measured over four simulated days, lemons were flagged on 25% of
+vehicle-days against 12.8% for the rest of the fleet."
+
+*Be accurate about this in the report:* the lemons are roughly **twice as likely** to be
+flagged, not certain to be. A high-maintenance vehicle only looks bad on a day it actually
+breaks, and a low-demand vehicle earns less but also spends less, so it can stay profitable.
+That is realistic — a single day is not enough evidence to condemn a vehicle, which is exactly
+why `becoming_unprofitable` looks at a three-day trend.
 
 **E3 — The data-quality section of the same report.**
 *Caption:* "The report states its own uncertainty: quarantined rows by reason, and the

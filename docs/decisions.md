@@ -524,5 +524,14 @@ Stated plainly, because a report that claims no weaknesses is not believed.
 - **The idle-alert timeout cannot fire if the whole fleet goes silent at once**, because an
   event-time timeout needs the watermark to advance. Covered by `TelemetryNotProduced`
   instead. See decision 5.
+- **The "lemon" vehicles are flagged more often, not always.** Measured over four simulated
+  days: lemons were flagged on 25% of vehicle-days against 12.8% for the rest of the fleet.
+  The thirsty ones (V013, V030 — roughly 3x the fleet's fuel cost) and the one that both
+  breaks down and barely works (V039 — consistently loss-making) show up clearly. The
+  low-demand lemon earns less but also spends less, so it can stay profitable; the
+  high-maintenance one only looks bad on a day it actually breaks. That is realistic rather
+  than broken — one day is not enough evidence to condemn a vehicle, which is precisely why
+  `becoming_unprofitable` looks at a three-day trend — but a demo script should say "watch
+  V039", not "watch any lemon".
 - **One Kafka broker, RF 1.** Replication is out of scope, so broker loss means data loss for
   anything not yet archived.
