@@ -20,17 +20,26 @@ param(
 $ErrorActionPreference = "Continue"
 Set-Location -Path $PSScriptRoot
 
-function Invoke-Native {
+function Assert-LastExitCode {
     <#
-        Run a native command and fail only on a non-zero exit code.
-        $args is splatted so quoting is preserved.
-    #>
-    param([Parameter(Mandatory)] [string] $Exe,
-          [Parameter(ValueFromRemainingArguments)] [string[]] $Arguments)
+        Fail the script if the command that just ran returned non-zero.
 
-    & $Exe @Arguments
+        Deliberately NOT a wrapper that takes the command as parameters: an
+        earlier version did, and PowerShell bound `-d` from `docker compose up -d`
+        to the wrapper's own parameters instead of passing it through. The stack
+        then came up in the FOREGROUND and the script never returned. Calling the
+        native command directly and checking $LASTEXITCODE afterwards has no
+        parameter-binding hazard at all.
+    #>
+    param([string] $What)
+
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "$Exe $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        Write-Host ""
+        Write-Host "$What failed with exit code $LASTEXITCODE" -ForegroundColor Red
+        if ($What -like "*up*") {
+            Write-Host "If this was a port collision, override the port in .env " -NoNewline
+            Write-Host "(see README - every published port is configurable)."
+        }
         exit $LASTEXITCODE
     }
 }
@@ -59,33 +68,38 @@ switch ($Target) {
         Write-Host "targets: up up-tools down reset build wait ps logs test smoke urls"
         Write-Host "         demo-idle demo-outage demo-resubmit demo-late-file"
     }
-    "build"   { Ensure-Env; Invoke-Native docker compose build }
+    "build"   { Ensure-Env; docker compose build; Assert-LastExitCode "docker compose build" }
     "up"      {
         Ensure-Env
-        Invoke-Native docker compose up -d --build
-        Invoke-Native python scripts/wait_for_stack.py
+        docker compose up -d --build
+        Assert-LastExitCode "docker compose up"
+        python scripts/wait_for_stack.py
+        Assert-LastExitCode "waiting for the stack"
         Show-Urls
     }
     "up-tools" {
         Ensure-Env
-        Invoke-Native docker compose --profile tools up -d --build
-        Invoke-Native python scripts/wait_for_stack.py
+        docker compose --profile tools up -d --build
+        Assert-LastExitCode "docker compose up"
+        python scripts/wait_for_stack.py
+        Assert-LastExitCode "waiting for the stack"
     }
-    "wait"    { Invoke-Native python scripts/wait_for_stack.py }
+    "wait"    { python scripts/wait_for_stack.py; Assert-LastExitCode "waiting for the stack" }
     "urls"    { Show-Urls }
-    "down"    { Invoke-Native docker compose --profile tools down }
+    "down"    { docker compose --profile tools down; Assert-LastExitCode "docker compose down" }
     "reset"   {
-        Invoke-Native docker compose --profile tools down -v --remove-orphans
+        docker compose --profile tools down -v --remove-orphans
+        Assert-LastExitCode "docker compose down -v"
         Remove-Item -ErrorAction SilentlyContinue reports\*.html, reports\*.csv
         Write-Host "reset complete - the next `up` starts simulated day 1 again"
     }
-    "ps"      { Invoke-Native docker compose ps }
+    "ps"      { docker compose ps }
     "logs"    {
         $svc = if ($Rest) { $Rest[0] } else { "speed" }
         & docker compose logs -f --tail=200 $svc
     }
     "test"    {
-        Invoke-Native docker compose run --rm --no-deps `
+        docker compose run --rm --no-deps `
           -v "${PSScriptRoot}/tests:/opt/fleet/tests:ro" `
           -v "${PSScriptRoot}/api:/opt/fleet/api:ro" `
           -v "${PSScriptRoot}/simulators:/opt/fleet/simulators:ro" `
@@ -93,11 +107,12 @@ switch ($Target) {
           -e PYTHONPATH=/opt/fleet `
           --entrypoint bash airflow -lc `
           "cd /opt/fleet && python -m pytest tests -q"
+        Assert-LastExitCode "the test suite"
     }
-    "smoke"          { Invoke-Native python scripts/smoke_test.py }
-    "demo-idle"      { Invoke-Native python scripts/demo.py idle }
-    "demo-outage"    { Invoke-Native python scripts/demo.py outage }
-    "demo-resubmit"  { Invoke-Native python scripts/demo.py resubmit }
-    "demo-late-file" { Invoke-Native python scripts/demo.py late-file }
+    "smoke"          { python scripts/smoke_test.py; Assert-LastExitCode "the smoke test" }
+    "demo-idle"      { python scripts/demo.py idle }
+    "demo-outage"    { python scripts/demo.py outage }
+    "demo-resubmit"  { python scripts/demo.py resubmit }
+    "demo-late-file" { python scripts/demo.py late-file }
     default { Write-Error "unknown target '$Target'"; exit 1 }
 }
