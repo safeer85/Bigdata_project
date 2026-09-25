@@ -80,10 +80,16 @@ groups:
           runbook: "docs/runbook.md#streamlaghigh"
 
   # =========================================================================
+  # Every expression below is scoped to job="api", because the API is the only
+  # service that can report these. That scoping is not cosmetic: these gauges
+  # were once defined in shared code, so all five services exported them at a
+  # default of 0, and `time() - 0 > 2700` made BatchNotRunRecently fire forever
+  # on four bogus series. The definitions have moved (see api/batch_metrics.py);
+  # the label selector is the second line of defence.
   - name: batch
     rules:
       - alert: ExpenseFileLate
-        expr: fleet_expense_file_late > 0
+        expr: fleet_expense_file_late{job="api"} > 0
         for: 1m
         labels: {severity: warning, stage: orchestration}
         annotations:
@@ -95,7 +101,7 @@ groups:
           runbook: "docs/runbook.md#expensefilelate"
 
       - alert: BatchRunFailed
-        expr: fleet_batch_run_failed > 0
+        expr: fleet_batch_run_failed{job="api"} > 0
         for: 1m
         labels: {severity: critical, stage: orchestration}
         annotations:
@@ -108,8 +114,8 @@ groups:
         # date is pending, and a simulated day takes 24 real minutes. 45 minutes
         # is therefore comfortably longer than a healthy quiet period.
         expr: |
-          (time() - fleet_batch_last_success_timestamp > 2700)
-          or absent(fleet_batch_last_success_timestamp)
+          (time() - fleet_batch_last_success_timestamp{job="api"} > 2700)
+          or absent(fleet_batch_last_success_timestamp{job="api"})
         for: 2m
         labels: {severity: warning, stage: orchestration}
         annotations:
@@ -123,7 +129,7 @@ groups:
         # Some drift is EXPECTED and is evidence for the report: ~2% of events are
         # injected late and the speed layer's watermark drops the worst of them.
         # 5% is the point at which the cause is no longer just the watermark.
-        expr: abs(fleet_speed_batch_drift_ratio) > 0.05
+        expr: abs(fleet_speed_batch_drift_ratio{job="api"}) > 0.05
         for: 2m
         labels: {severity: warning, stage: processing}
         annotations:
@@ -153,7 +159,7 @@ groups:
   - name: business
     rules:
       - alert: IdleVehiclesHigh
-        expr: fleet_open_idle_alerts > 8
+        expr: fleet_open_idle_alerts{job="api"} > 8
         for: 2m
         labels: {severity: warning, stage: serving}
         annotations:

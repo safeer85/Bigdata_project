@@ -50,7 +50,6 @@ class TelemetryService:
         self.current_sim_date = simclock.sim_date(self.last_sim_ts)
 
         os.makedirs(config.ODOMETER_DIR, exist_ok=True)
-        self._ticks_since_checkpoint = 0
         self._restore_odometers()
         self._install_signal_handlers()
 
@@ -168,13 +167,18 @@ class TelemetryService:
             self.current_sim_date = today
             return
 
-        # Checkpoint the open day every ~30 real seconds. 50 floats is nothing to
-        # write, and it bounds how much of the ledger a restart can lose to one
-        # checkpoint interval instead of the whole day so far.
-        self._ticks_since_checkpoint += 1
-        if self._ticks_since_checkpoint * config.EMIT_INTERVAL_REAL_S >= 30:
-            self._checkpoint_odometer()
-            self._ticks_since_checkpoint = 0
+        # Checkpoint the open day on EVERY tick. 50 floats is a ~1 KB write every
+        # 2 real seconds -- nothing -- and the interval is precisely how much
+        # ledger a restart loses.
+        #
+        # This started at every 30 real seconds, which is 30 SIMULATED minutes at
+        # COMPRESSION=60. A restart then cost ~90 km of fleet distance, the
+        # reported distance came out ~7% below the archive's `gps_km`, and the
+        # batch layer flagged 21 of 50 vehicles for a distance mismatch that the
+        # partner had not caused. The lesson is the compression factor: any
+        # interval chosen in real seconds is 60x longer in the units the business
+        # logic actually cares about.
+        self._checkpoint_odometer()
 
     # --- the main loop -----------------------------------------------------
 

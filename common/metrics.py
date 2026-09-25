@@ -98,40 +98,17 @@ DB_WRITE_ERRORS = Counter(
     ["table"],
 )
 
-# --- Serving ---------------------------------------------------------------
-OPEN_IDLE_ALERTS = Gauge(
-    "fleet_open_idle_alerts",
-    "Idle alerts currently open (business alert IdleVehiclesHigh watches this)",
-)
-
-# --- Batch (populated by the API from PostgreSQL) --------------------------
-BATCH_TASK_DURATION = Gauge(
-    "fleet_batch_task_duration_seconds",
-    "Duration of the last run of each batch task",
-    ["task"],
-)
-BATCH_LAST_SUCCESS = Gauge(
-    "fleet_batch_last_success_timestamp",
-    "Unix time of the last successful batch run",
-)
-BATCH_QUARANTINED_ROWS = Gauge(
-    "fleet_batch_quarantined_rows",
-    "Expense rows quarantined by the most recent batch run",
-)
-EXPENSE_FILE_LATE = Gauge(
-    "fleet_expense_file_late",
-    "1 when the most recent expense file missed its SLA, else 0",
-)
-BATCH_RUN_FAILED = Gauge(
-    "fleet_batch_run_failed",
-    "1 when the most recent batch run ended in failure, else 0. Drives BatchRunFailed.",
-)
-SPEED_BATCH_DRIFT = Gauge(
-    "fleet_speed_batch_drift_ratio",
-    "Relative difference between speed-layer and batch-layer fleet revenue for the "
-    "most recently reconciled day. Non-zero is EXPECTED (watermark drops).",
-)
-
+# --- Serving and batch metrics live in api/batch_metrics.py, NOT here -------
+#
+# They used to be defined in this module, and that was a real bug. Every service
+# imports `common.metrics`, so every service exported `fleet_batch_last_success_
+# timestamp` at its default value of 0. Prometheus then saw FIVE series for it --
+# four of them permanently zero -- and `BatchNotRunRecently` fired forever on the
+# bogus ones, because `time() - 0 > 2700` is always true.
+#
+# A permanently-firing false alert is worse than no alert: it teaches people to
+# ignore the channel. Metrics that only ONE service can meaningfully report are
+# now defined in that service, so no other process can publish a series for them.
 
 def serve(port: int) -> None:
     """Start the Prometheus scrape endpoint on `port` in a background thread."""

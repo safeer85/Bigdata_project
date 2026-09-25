@@ -1,0 +1,42 @@
+-- captured 2026-09-25T06:10:58.678367+00:00
+
+-- drift
+-- SELECT sim_date, speed_revenue, batch_revenue, drift_abs, drift_ratio, speed_trips, batch_trips FROM speed_batch_drift ORDER BY sim_date
+  sim_date  | speed_revenue | batch_revenue | drift_abs | drift_ratio | speed_trips | batch_trips 
+------------+---------------+---------------+-----------+-------------+-------------+-------------
+ 2024-01-01 |      49434.23 |      49434.23 |        -0 |          -0 |         378 |         378
+ 2024-01-02 |       41088.1 |      41227.61 |    139.51 |    0.003384 |         316 |         317
+(2 rows)
+
+
+
+-- batch_runs
+-- SELECT run_id, sim_date, expense_file_version, status, expense_file_late, quarantined_rows, clean_rows, vehicles_out FROM batch_runs ORDER BY started_at DESC LIMIT 10
+         run_id         |  sim_date  | expense_file_version | status  | expense_file_late | quarantined_rows | clean_rows | vehicles_out 
+------------------------+------------+----------------------+---------+-------------------+------------------+------------+--------------
+ 2024-01-01_v2_51e7d32b | 2024-01-01 |                    2 | success | t                 |                0 |         50 |           50
+ 2024-01-02_v1_43ab2977 | 2024-01-02 |                    1 | success | f                 |                1 |         49 |           50
+ 2024-01-01_v1_30dea3cb | 2024-01-01 |                    1 | success | f                 |                1 |         49 |           50
+(3 rows)
+
+
+
+-- dq_issues
+-- SELECT sim_date, reason, count(*) FROM dq_issues GROUP BY sim_date, reason ORDER BY sim_date DESC, 3 DESC
+  sim_date  |     reason     | count 
+------------+----------------+-------
+ 2024-01-02 | negative_value |     1
+ 2024-01-01 | negative_value |     1
+(2 rows)
+
+
+
+-- flags
+-- SELECT sim_date, count(*) FILTER (WHERE unprofitable) unprofitable, count(*) FILTER (WHERE becoming_unprofitable) becoming, count(*) FILTER (WHERE low_margin) low_margin, count(*) FILTER (WHERE distance_mismatch) distance_mismatch, count(*) FILTER (WHERE in_service) in_service FROM batch_vehicle_daily GROUP BY sim_date ORDER BY sim_date
+  sim_date  | unprofitable | becoming | low_margin | distance_mismatch | in_service 
+------------+--------------+----------+------------+-------------------+------------
+ 2024-01-01 |            6 |        0 |          5 |                 2 |          1
+ 2024-01-02 |            4 |        0 |          3 |                21 |          3
+(2 rows)
+
+

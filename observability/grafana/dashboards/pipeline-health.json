@@ -222,7 +222,7 @@
       "description": "(batch - speed) / batch for the most recently reconciled day. A small POSITIVE drift is healthy: it is the watermark's effect. Negative would mean the speed layer double-counted; above 5% fires SpeedBatchDriftHigh.",
       "datasource": { "type": "prometheus", "uid": "fleet-prometheus" },
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 18 },
-      "targets": [{ "refId": "A", "expr": "fleet_speed_batch_drift_ratio", "legendFormat": "drift" }],
+      "targets": [{ "refId": "A", "expr": "fleet_speed_batch_drift_ratio{job=\"api\"}", "legendFormat": "drift" }],
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "graphMode": "area",
@@ -297,7 +297,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "fleet_batch_task_duration_seconds",
+          "expr": "fleet_batch_task_duration_seconds{job=\"api\"}",
           "legendFormat": "{{task}}",
           "instant": true
         }
@@ -334,19 +334,19 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time() - fleet_batch_last_success_timestamp",
+          "expr": "time() - fleet_batch_last_success_timestamp{job=\"api\"}",
           "legendFormat": "since last success",
           "instant": true
         },
         {
           "refId": "B",
-          "expr": "fleet_batch_quarantined_rows",
+          "expr": "fleet_batch_quarantined_rows{job=\"api\"}",
           "legendFormat": "quarantined rows",
           "instant": true
         },
         {
           "refId": "C",
-          "expr": "fleet_expense_file_late",
+          "expr": "fleet_expense_file_late{job=\"api\"}",
           "legendFormat": "expense file late",
           "instant": true
         }

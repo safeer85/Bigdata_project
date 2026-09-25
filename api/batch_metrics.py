@@ -16,11 +16,46 @@ Recorded in docs/decisions.md.
 """
 from __future__ import annotations
 
-from common import metrics
+from prometheus_client import Gauge
+
 from common.logging import get_logger
 from api import queries
 
 log = get_logger("api", stage="serving")
+
+# Defined HERE and not in common/metrics.py, deliberately. See the note in that
+# module: these are values only the API can meaningfully report, and defining
+# them in shared code made every other service export them as a constant 0.
+OPEN_IDLE_ALERTS = Gauge(
+    "fleet_open_idle_alerts",
+    "Idle alerts currently open (the IdleVehiclesHigh business alert watches this)",
+)
+BATCH_TASK_DURATION = Gauge(
+    "fleet_batch_task_duration_seconds",
+    "Duration of the last run of each batch task",
+    ["task"],
+)
+BATCH_LAST_SUCCESS = Gauge(
+    "fleet_batch_last_success_timestamp",
+    "Unix time of the last successful batch run",
+)
+BATCH_QUARANTINED_ROWS = Gauge(
+    "fleet_batch_quarantined_rows",
+    "Expense rows quarantined by the most recent batch run",
+)
+EXPENSE_FILE_LATE = Gauge(
+    "fleet_expense_file_late",
+    "1 when the most recent expense file missed its SLA, else 0",
+)
+BATCH_RUN_FAILED = Gauge(
+    "fleet_batch_run_failed",
+    "1 when the most recent batch run ended in failure, else 0",
+)
+SPEED_BATCH_DRIFT = Gauge(
+    "fleet_speed_batch_drift_ratio",
+    "Relative difference between speed-layer and batch-layer fleet revenue for the "
+    "most recently reconciled day. Non-zero is EXPECTED (watermark drops).",
+)
 
 
 def refresh() -> None:
@@ -45,14 +80,14 @@ def _refresh_batch_run() -> None:
     run = queries.last_successful_run()
     if run:
         if run.get("finished_epoch"):
-            metrics.BATCH_LAST_SUCCESS.set(float(run["finished_epoch"]))
-        metrics.BATCH_QUARANTINED_ROWS.set(float(run.get("quarantined_rows") or 0))
+            BATCH_LAST_SUCCESS.set(float(run["finished_epoch"]))
+        BATCH_QUARANTINED_ROWS.set(float(run.get("quarantined_rows") or 0))
 
         # Per-task durations, so the pipeline-health dashboard can show which
         # task in the DAG is the slow one.
         for task, seconds in (run.get("task_durations") or {}).items():
             try:
-                metrics.BATCH_TASK_DURATION.labels(task=task).set(float(seconds))
+                BATCH_TASK_DURATION.labels(task=task).set(float(seconds))
             except (TypeError, ValueError):
                 continue
 
@@ -60,10 +95,10 @@ def _refresh_batch_run() -> None:
     # successful one: a day whose file never arrived is recorded as a failed run,
     # and that is precisely the case ExpenseFileLate must fire on.
     latest = queries.last_batch_run()
-    metrics.EXPENSE_FILE_LATE.set(
+    EXPENSE_FILE_LATE.set(
         1.0 if (latest and latest.get("expense_file_late")) else 0.0
     )
-    metrics.BATCH_RUN_FAILED.set(
+    BATCH_RUN_FAILED.set(
         1.0 if (latest and latest.get("status") == "failed") else 0.0
     )
 
@@ -71,8 +106,8 @@ def _refresh_batch_run() -> None:
 def _refresh_drift() -> None:
     drift = queries.latest_drift()
     if drift is not None:
-        metrics.SPEED_BATCH_DRIFT.set(float(drift.get("drift_ratio") or 0.0))
+        SPEED_BATCH_DRIFT.set(float(drift.get("drift_ratio") or 0.0))
 
 
 def _refresh_alerts() -> None:
-    metrics.OPEN_IDLE_ALERTS.set(float(queries.open_idle_alert_count()))
+    OPEN_IDLE_ALERTS.set(float(queries.open_idle_alert_count()))

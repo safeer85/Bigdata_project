@@ -25,6 +25,14 @@ BASE_TS = datetime(2024, 1, 1, 9, 0, 0, tzinfo=timezone.utc)
 
 def _event(event_id, vehicle="V001", event_type="ping", status="idle",
            fare=0.0, lat=12.98, lon=77.60, minutes=0, speed=0.0):
+    """One row shaped exactly as `streaming.speed.read_events` produces it.
+
+    `timestamp` and `schema_version` are included even though the assertions do
+    not read them: `spark_validation_expr` checks every non-nullable field of the
+    contract for nullness, so a fixture missing them fails to resolve rather than
+    failing an assertion.
+    """
+    ts = BASE_TS + timedelta(minutes=minutes)
     return {
         "event_id": event_id,
         "event_type": event_type,
@@ -36,7 +44,9 @@ def _event(event_id, vehicle="V001", event_type="ping", status="idle",
         "speed": speed,
         "status": status,
         "fare": fare,
-        "event_time": BASE_TS + timedelta(minutes=minutes),
+        "timestamp": ts.isoformat().replace("+00:00", "Z"),
+        "schema_version": 1,
+        "event_time": ts,
     }
 
 
@@ -54,6 +64,8 @@ def _frame(spark, rows):
         T.StructField("speed", T.DoubleType()),
         T.StructField("status", T.StringType()),
         T.StructField("fare", T.DoubleType()),
+        T.StructField("timestamp", T.StringType()),
+        T.StructField("schema_version", T.IntegerType()),
         T.StructField("event_time", T.TimestampType()),
     ])
     return spark.createDataFrame(rows, schema)
@@ -82,12 +94,13 @@ def test_duplicates_do_not_inflate_counts(spark):
     ]
     events = _frame(spark, rows)
 
-    # Without dedup: 3 rows, 450.0 revenue -- the wrong answer.
+    # Without dedup: 3 rows and 500.0 revenue -- the duplicated 150 is counted
+    # twice on top of the genuine 150 + 200. That is the wrong answer.
     naive = events.agg(
         F.count("*").alias("trips"), F.sum("fare").alias("revenue")
     ).collect()[0]
     assert naive["trips"] == 3
-    assert naive["revenue"] == pytest.approx(450.0)
+    assert naive["revenue"] == pytest.approx(500.0)
 
     # With dedup on event_id: 2 rows, 350.0 -- the right answer.
     deduped = events.dropDuplicates(["event_id"]).agg(
@@ -164,10 +177,7 @@ def test_spark_validation_matches_the_python_rules(spark):
 
         # The Python function's verdict, over the same row shaped as an event dict.
         as_event = dict(row)
-        as_event["timestamp"] = as_event.pop("event_time").isoformat().replace(
-            "+00:00", "Z"
-        )
-        as_event["schema_version"] = 1
+        as_event.pop("event_time")
         valid, reason = validation.validate_event(as_event)
         assert (reason if not valid else None) == expected, f"python disagreed on {label}"
 
