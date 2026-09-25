@@ -1,15 +1,15 @@
 {
-  "captured_at": "2026-09-25T06:10:58.678367+00:00",
-  "sim_date": "2024-01-02",
-  "sample_vehicle": "V048",
+  "captured_at": "2026-09-25T07:01:18.103549+00:00",
+  "sim_date": "2024-01-04",
+  "sample_vehicle": "V049",
   "responses": {
     "health": {
       "request": "GET /health",
       "response": {
         "status": "ok",
         "database": "ok",
-        "sim_time": "2024-01-03T04:08:42.055200Z",
-        "sim_date": "2024-01-03",
+        "sim_time": "2024-01-05T06:30:02.041020Z",
+        "sim_date": "2024-01-05",
         "compression": 60,
         "version": "1.0.0"
       }
@@ -18,48 +18,28 @@
       "request": "GET /fleet/live",
       "response": {
         "source": "speed",
-        "as_of": "2024-01-03T03:58:05.805540Z",
-        "active_vehicles": 10,
-        "idle_vehicles": 5,
-        "on_trip_vehicles": 3,
-        "enroute_vehicles": 2,
-        "idle_ratio": 0.5,
-        "open_idle_alerts": 4,
-        "trips_this_hour": 4,
-        "trips_last_hour": 1,
+        "as_of": "2024-01-05T06:04:29.500740Z",
+        "active_vehicles": 12,
+        "idle_vehicles": 7,
+        "on_trip_vehicles": 2,
+        "enroute_vehicles": 3,
+        "idle_ratio": 0.5833,
+        "open_idle_alerts": 5,
+        "trips_this_hour": 3,
+        "trips_last_hour": 6,
         "earnings_by_zone": [
           {
             "zone_id": "Z06",
-            "earnings": 287.05,
+            "earnings": 211.68,
             "trips": 2
           },
           {
-            "zone_id": "Z01",
-            "earnings": 148.48,
-            "trips": 1
-          },
-          {
-            "zone_id": "Z02",
-            "earnings": 127.11,
-            "trips": 1
-          },
-          {
             "zone_id": "Z12",
-            "earnings": 0.0,
-            "trips": 0
+            "earnings": 157.23,
+            "trips": 1
           },
           {
-            "zone_id": "Z05",
-            "earnings": 0.0,
-            "trips": 0
-          },
-          {
-            "zone_id": "Z03",
-            "earnings": 0.0,
-            "trips": 0
-          },
-          {
-            "zone_id": "Z14",
+            "zone_id": "Z13",
             "earnings": 0.0,
             "trips": 0
           },
@@ -69,7 +49,12 @@
             "trips": 0
           },
           {
-            "zone_id": "Z07",
+            "zone_id": "Z09",
+            "earnings": 0.0,
+            "trips": 0
+          },
+          {
+            "zone_id": "Z14",
             "earnings": 0.0,
             "trips": 0
           },
@@ -79,12 +64,27 @@
             "trips": 0
           },
           {
-            "zone_id": "Z13",
+            "zone_id": "Z01",
+            "earnings": 0.0,
+            "trips": 0
+          },
+          {
+            "zone_id": "Z08",
+            "earnings": 0.0,
+            "trips": 0
+          },
+          {
+            "zone_id": "Z02",
             "earnings": 0.0,
             "trips": 0
           },
           {
             "zone_id": "Z04",
+            "earnings": 0.0,
+            "trips": 0
+          },
+          {
+            "zone_id": "Z07",
             "earnings": 0.0,
             "trips": 0
           }
@@ -96,16 +96,25 @@
       "request": "GET /zones/live",
       "response": {
         "source": "speed",
-        "as_of": "2024-01-03T03:58:05.805540Z",
+        "as_of": "2024-01-05T06:04:29.500740Z",
         "zones": [
           {
             "zone_id": "Z01",
-            "active_vehicles": 2,
-            "idle_vehicles": 2,
+            "active_vehicles": 1,
+            "idle_vehicles": 1,
             "on_trip_vehicles": 0,
             "idle_ratio": 1.0,
-            "trips_this_hour": 1,
-            "earnings_this_hour": 148.48
+            "trips_this_hour": 0,
+            "earnings_this_hour": 0.0
+          },
+          {
+            "zone_id": "Z02",
+            "active_vehicles": 2,
+            "idle_vehicles": 1,
+            "on_trip_vehicles": 0,
+            "idle_ratio": 0.5,
+            "trips_this_hour": 0,
+            "earnings_this_hour": 0.0
           },
           {
             "zone_id": "Z04",
@@ -117,26 +126,8 @@
             "earnings_this_hour": 0.0
           },
           {
-            "zone_id": "Z06",
-            "active_vehicles": 1,
-            "idle_vehicles": 0,
-            "on_trip_vehicles": 0,
-            "idle_ratio": 0.0,
-            "trips_this_hour": 2,
-            "earnings_this_hour": 287.05
-          },
-          {
             "zone_id": "Z07",
-            "active_vehicles": 2,
-            "idle_vehicles": 0,
-            "on_trip_vehicles": 2,
-            "idle_ratio": 0.0,
-            "trips_this_hour": 0,
-            "earnings_this_hour": 0.0
-          },
-          {
-            "zone_id": "Z10",
-            "active_vehicles": 2,
+            "active_vehicles": 1,
             "idle_vehicles": 0,
             "on_trip_vehicles": 1,
             "idle_ratio": 0.0,
@@ -144,7 +135,7 @@
             "earnings_this_hour": 0.0
           },
           {
-            "zone_id": "Z11",
+            "zone_id": "Z08",
             "active_vehicles": 1,
             "idle_vehicles": 1,
             "on_trip_vehicles": 0,
@@ -153,13 +144,40 @@
             "earnings_this_hour": 0.0
           },
           {
-            "zone_id": "Z13",
+            "zone_id": "Z09",
             "active_vehicles": 1,
-            "idle_vehicles": 1,
+            "idle_vehicles": 0,
             "on_trip_vehicles": 0,
-            "idle_ratio": 1.0,
+            "idle_ratio": 0.0,
             "trips_this_hour": 0,
             "earnings_this_hour": 0.0
+          },
+          {
+            "zone_id": "Z10",
+            "active_vehicles": 1,
+            "idle_vehicles": 0,
+            "on_trip_vehicles": 0,
+            "idle_ratio": 0.0,
+            "trips_this_hour": 0,
+            "earnings_this_hour": 0.0
+          },
+          {
+            "zone_id": "Z11",
+            "active_vehicles": 2,
+            "idle_vehicles": 1,
+            "on_trip_vehicles": 1,
+            "idle_ratio": 0.5,
+            "trips_this_hour": 0,
+            "earnings_this_hour": 0.0
+          },
+          {
+            "zone_id": "Z12",
+            "active_vehicles": 2,
+            "idle_vehicles": 2,
+            "on_trip_vehicles": 0,
+            "idle_ratio": 1.0,
+            "trips_this_hour": 1,
+            "earnings_this_hour": 157.23
           }
         ],
         "currency": "CU"
@@ -170,84 +188,92 @@
       "response": {
         "source": "speed",
         "threshold_sim_minutes": 45,
-        "count": 4,
+        "count": 5,
         "alerts": [
           {
-            "vehicle_id": "V039",
-            "opened_at": "2024-01-02T23:47:03.579300Z",
+            "vehicle_id": "V009",
+            "opened_at": "2024-01-05T05:52:29.443020Z",
             "closed_at": null,
-            "zone_id": "Z11",
-            "idle_sim_minutes": 46.69,
+            "zone_id": "Z13",
+            "idle_sim_minutes": 53.35,
+            "status": "open"
+          },
+          {
+            "vehicle_id": "V029",
+            "opened_at": "2024-01-05T05:21:49.227480Z",
+            "closed_at": null,
+            "zone_id": "Z07",
+            "idle_sim_minutes": 49.31,
+            "status": "open"
+          },
+          {
+            "vehicle_id": "V044",
+            "opened_at": "2024-01-05T02:19:51.244020Z",
+            "closed_at": null,
+            "zone_id": "Z14",
+            "idle_sim_minutes": 53.08,
+            "status": "open"
+          },
+          {
+            "vehicle_id": "V004",
+            "opened_at": "2024-01-05T00:39:46.625100Z",
+            "closed_at": null,
+            "zone_id": "Z04",
+            "idle_sim_minutes": 59.25,
             "status": "open"
           },
           {
             "vehicle_id": "V014",
-            "opened_at": "2024-01-02T23:39:03.559200Z",
+            "opened_at": "2024-01-04T01:02:56.801640Z",
             "closed_at": null,
-            "zone_id": "Z01",
-            "idle_sim_minutes": 48.69,
-            "status": "open"
-          },
-          {
-            "vehicle_id": "V034",
-            "opened_at": "2024-01-02T22:50:22.040100Z",
-            "closed_at": null,
-            "zone_id": "Z04",
-            "idle_sim_minutes": 49.0,
-            "status": "open"
-          },
-          {
-            "vehicle_id": "V009",
-            "opened_at": "2024-01-02T22:50:22.040100Z",
-            "closed_at": null,
-            "zone_id": "Z13",
-            "idle_sim_minutes": 49.0,
+            "zone_id": "Z06",
+            "idle_sim_minutes": 47.64,
             "status": "open"
           }
         ]
       }
     },
     "vehicle-lambda-merge": {
-      "request": "GET /vehicles/V048",
+      "request": "GET /vehicles/V049",
       "response": {
-        "vehicle_id": "V048",
+        "vehicle_id": "V049",
         "live": {
           "source": "speed",
-          "as_of": "2024-01-03T00:23:41.452200Z",
-          "status": "offline",
-          "zone_id": "Z16",
-          "lat": 12.926697,
-          "lon": 77.667049,
+          "as_of": "2024-01-05T05:58:29.460360Z",
+          "status": "idle",
+          "zone_id": "Z05",
+          "lat": 12.997257,
+          "lon": 77.521301,
           "speed": 0.0,
           "trip_id": null,
-          "idle_sim_minutes": 0.0,
+          "idle_sim_minutes": 12.67,
           "alert_open": false,
           "note": "Approximate. The speed layer applies a watermark and may not include events that arrived late."
         },
         "today": {
           "source": "speed",
-          "sim_date": "2024-01-03",
-          "trips": 1,
-          "revenue": 176.04,
+          "sim_date": "2024-01-05",
+          "trips": 2,
+          "revenue": 147.43,
           "note": "Running total for the simulated day so far. Superseded by the batch figure once the day closes and is reconciled."
         },
         "history": [
           {
             "source": "batch",
-            "sim_date": "2024-01-02",
-            "as_of": "2026-09-25T06:08:22.280391Z",
-            "trips": 4,
-            "revenue": 641.41,
-            "gps_km": 85.527,
-            "distance_covered": 75.853,
-            "fuel_cost": 235.57,
-            "maintenance_cost": 1400.01,
-            "cost": 1635.58,
-            "net_profit": -994.17,
-            "margin": -1.55,
-            "revenue_per_km": 7.4995,
-            "cost_per_km": 19.1236,
-            "utilization": 0.2392,
+            "sim_date": "2024-01-04",
+            "as_of": "2026-09-25T07:00:24.104536Z",
+            "trips": 1,
+            "revenue": 84.55,
+            "gps_km": 9.92,
+            "distance_covered": 9.616,
+            "fuel_cost": 32.19,
+            "maintenance_cost": 652.89,
+            "cost": 685.08,
+            "net_profit": -600.53,
+            "margin": -7.1027,
+            "revenue_per_km": 8.5232,
+            "cost_per_km": 69.0605,
+            "utilization": 0.0177,
             "unprofitable": true,
             "low_margin": true,
             "becoming_unprofitable": false,
@@ -257,36 +283,95 @@
             "missing_telemetry": false,
             "expense_file_version": 1,
             "reasons": [
-              "net profit -994.17 CU is negative",
-              "margin -155.0% is below the 10% threshold",
+              "net profit -600.53 CU is negative",
+              "margin -710.3% is below the 10% threshold",
               "vehicle was serviced or in the garage"
+            ]
+          },
+          {
+            "source": "batch",
+            "sim_date": "2024-01-03",
+            "as_of": "2026-09-25T06:35:30.489216Z",
+            "trips": 6,
+            "revenue": 746.5,
+            "gps_km": 64.993,
+            "distance_covered": 50.621,
+            "fuel_cost": 181.37,
+            "maintenance_cost": 147.84,
+            "cost": 329.21,
+            "net_profit": 417.29,
+            "margin": 0.559,
+            "revenue_per_km": 11.4859,
+            "cost_per_km": 5.0653,
+            "utilization": 0.1673,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": true,
+            "in_service": false,
+            "missing_costs": false,
+            "missing_telemetry": false,
+            "expense_file_version": 1,
+            "reasons": [
+              "GPS distance differs from reported distance by 28.4%"
+            ]
+          },
+          {
+            "source": "batch",
+            "sim_date": "2024-01-02",
+            "as_of": "2026-09-25T06:08:22.280391Z",
+            "trips": 4,
+            "revenue": 391.41,
+            "gps_km": 52.665,
+            "distance_covered": 45.214,
+            "fuel_cost": 153.44,
+            "maintenance_cost": 162.64,
+            "cost": 316.08,
+            "net_profit": 75.33,
+            "margin": 0.1925,
+            "revenue_per_km": 7.4321,
+            "cost_per_km": 6.0017,
+            "utilization": 0.1156,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": true,
+            "in_service": false,
+            "missing_costs": false,
+            "missing_telemetry": false,
+            "expense_file_version": 1,
+            "reasons": [
+              "GPS distance differs from reported distance by 16.5%"
             ]
           },
           {
             "source": "batch",
             "sim_date": "2024-01-01",
             "as_of": "2026-09-25T06:10:20.767192Z",
-            "trips": 10,
-            "revenue": 1177.88,
-            "gps_km": 126.676,
-            "distance_covered": 123.97,
-            "fuel_cost": 422.63,
-            "maintenance_cost": 239.66,
-            "cost": 662.29,
-            "net_profit": 515.59,
-            "margin": 0.4377,
-            "revenue_per_km": 9.2984,
-            "cost_per_km": 5.2282,
-            "utilization": 0.2435,
-            "unprofitable": false,
-            "low_margin": false,
+            "trips": 1,
+            "revenue": 95.53,
+            "gps_km": 16.672,
+            "distance_covered": 16.618,
+            "fuel_cost": 57.45,
+            "maintenance_cost": 115.43,
+            "cost": 172.88,
+            "net_profit": -77.35,
+            "margin": -0.8097,
+            "revenue_per_km": 5.73,
+            "cost_per_km": 10.3695,
+            "utilization": 0.0691,
+            "unprofitable": true,
+            "low_margin": true,
             "becoming_unprofitable": false,
             "distance_mismatch": false,
             "in_service": false,
             "missing_costs": false,
             "missing_telemetry": false,
             "expense_file_version": 2,
-            "reasons": []
+            "reasons": [
+              "net profit -77.35 CU is negative",
+              "margin -81.0% is below the 10% threshold"
+            ]
           }
         ],
         "currency": "CU",
@@ -294,51 +379,33 @@
       }
     },
     "unprofitable": {
-      "request": "GET /vehicles/unprofitable?sim_date=2024-01-02",
+      "request": "GET /vehicles/unprofitable?sim_date=2024-01-04",
       "response": {
         "source": "batch",
-        "sim_date": "2024-01-02",
+        "sim_date": "2024-01-04",
         "threshold_margin": 0.1,
-        "count": 26,
+        "count": 16,
         "vehicles": [
           {
-            "vehicle_id": "V048",
-            "revenue": 641.41,
-            "cost": 1635.58,
-            "net_profit": -994.17,
-            "margin": -1.55,
-            "utilization": 0.2392,
+            "vehicle_id": "V049",
+            "revenue": 84.55,
+            "cost": 685.08,
+            "net_profit": -600.53,
+            "margin": -7.1027,
+            "utilization": 0.0177,
             "unprofitable": true,
             "low_margin": true,
             "becoming_unprofitable": false,
             "distance_mismatch": false,
             "in_service": true,
             "reasons": [
-              "net profit -994.17 CU is negative",
-              "margin -155.0% is below the 10% threshold",
+              "net profit -600.53 CU is negative",
+              "margin -710.3% is below the 10% threshold",
               "vehicle was serviced or in the garage"
             ]
           },
           {
-            "vehicle_id": "V007",
-            "revenue": 790.37,
-            "cost": 1697.66,
-            "net_profit": -907.29,
-            "margin": -1.1479,
-            "utilization": 0.1959,
-            "unprofitable": true,
-            "low_margin": true,
-            "becoming_unprofitable": false,
-            "distance_mismatch": false,
-            "in_service": true,
-            "reasons": [
-              "net profit -907.29 CU is negative",
-              "margin -114.8% is below the 10% threshold",
-              "vehicle was serviced or in the garage"
-            ]
-          },
-          {
-            "vehicle_id": "V009",
+            "vehicle_id": "V034",
             "revenue": 0.0,
             "cost": 90.0,
             "net_profit": -90.0,
@@ -346,357 +413,155 @@
             "utilization": 0.0,
             "unprofitable": true,
             "low_margin": false,
-            "becoming_unprofitable": false,
+            "becoming_unprofitable": true,
             "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "net profit -90.00 CU is negative"
-            ]
-          },
-          {
-            "vehicle_id": "V030",
-            "revenue": 947.8,
-            "cost": 982.43,
-            "net_profit": -34.63,
-            "margin": -0.0365,
-            "utilization": 0.1969,
-            "unprofitable": true,
-            "low_margin": true,
-            "becoming_unprofitable": false,
-            "distance_mismatch": false,
-            "in_service": false,
-            "reasons": [
-              "net profit -34.63 CU is negative",
-              "margin -3.6% is below the 10% threshold"
-            ]
-          },
-          {
-            "vehicle_id": "V033",
-            "revenue": 212.32,
-            "cost": 186.8,
-            "net_profit": 25.52,
-            "margin": 0.1202,
-            "utilization": 0.046,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 28.6%"
-            ]
-          },
-          {
-            "vehicle_id": "V019",
-            "revenue": 207.5,
-            "cost": 172.99,
-            "net_profit": 34.51,
-            "margin": 0.1663,
-            "utilization": 0.0774,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 17.9%"
-            ]
-          },
-          {
-            "vehicle_id": "V014",
-            "revenue": 298.76,
-            "cost": 256.29,
-            "net_profit": 42.47,
-            "margin": 0.1422,
-            "utilization": 0.0812,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 20.2%"
-            ]
-          },
-          {
-            "vehicle_id": "V029",
-            "revenue": 201.44,
-            "cost": 132.65,
-            "net_profit": 68.79,
-            "margin": 0.3415,
-            "utilization": 0.0212,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 51.3%"
-            ]
-          },
-          {
-            "vehicle_id": "V004",
-            "revenue": 268.67,
-            "cost": 195.4,
-            "net_profit": 73.27,
-            "margin": 0.2727,
-            "utilization": 0.1,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 48.0%"
-            ]
-          },
-          {
-            "vehicle_id": "V049",
-            "revenue": 391.41,
-            "cost": 316.08,
-            "net_profit": 75.33,
-            "margin": 0.1925,
-            "utilization": 0.1156,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 16.5%"
-            ]
-          },
-          {
-            "vehicle_id": "V044",
-            "revenue": 277.99,
-            "cost": 182.96,
-            "net_profit": 95.03,
-            "margin": 0.3418,
-            "utilization": 0.1038,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 24.6%"
-            ]
-          },
-          {
-            "vehicle_id": "V013",
-            "revenue": 637.5,
-            "cost": 538.48,
-            "net_profit": 99.02,
-            "margin": 0.1553,
-            "utilization": 0.1548,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 20.6%"
-            ]
-          },
-          {
-            "vehicle_id": "V024",
-            "revenue": 334.82,
-            "cost": 189.27,
-            "net_profit": 145.55,
-            "margin": 0.4347,
-            "utilization": 0.0876,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 48.7%"
-            ]
-          },
-          {
-            "vehicle_id": "V003",
-            "revenue": 466.23,
-            "cost": 283.72,
-            "net_profit": 182.51,
-            "margin": 0.3915,
-            "utilization": 0.2066,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 22.3%"
-            ]
-          },
-          {
-            "vehicle_id": "V047",
-            "revenue": 555.8,
-            "cost": 333.4,
-            "net_profit": 222.4,
-            "margin": 0.4001,
-            "utilization": 0.1521,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 22.2%"
-            ]
-          },
-          {
-            "vehicle_id": "V034",
-            "revenue": 548.92,
-            "cost": 272.68,
-            "net_profit": 276.24,
-            "margin": 0.5032,
-            "utilization": 0.1164,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 16.3%"
-            ]
-          },
-          {
-            "vehicle_id": "V018",
-            "revenue": 718.94,
-            "cost": 438.02,
-            "net_profit": 280.92,
-            "margin": 0.3907,
-            "utilization": 0.1537,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
-            "reasons": [
-              "GPS distance differs from reported distance by 17.1%"
+              "net profit -90.00 CU is negative",
+              "net profit trending down or loss-making on 2 of the last 3 days"
             ]
           },
           {
             "vehicle_id": "V039",
-            "revenue": 594.49,
-            "cost": 311.9,
-            "net_profit": 282.59,
-            "margin": 0.4753,
-            "utilization": 0.1334,
-            "unprofitable": false,
+            "revenue": 0.0,
+            "cost": 90.0,
+            "net_profit": -90.0,
+            "margin": 0.0,
+            "utilization": 0.0,
+            "unprofitable": true,
             "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "GPS distance differs from reported distance by 56.1%"
+              "net profit -90.00 CU is negative",
+              "net profit trending down or loss-making on 2 of the last 3 days"
             ]
           },
           {
-            "vehicle_id": "V032",
-            "revenue": 604.08,
-            "cost": 310.26,
-            "net_profit": 293.82,
-            "margin": 0.4864,
-            "utilization": 0.2109,
-            "unprofitable": false,
-            "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
+            "vehicle_id": "V009",
+            "revenue": 315.85,
+            "cost": 380.85,
+            "net_profit": -65.0,
+            "margin": -0.2058,
+            "utilization": 0.1135,
+            "unprofitable": true,
+            "low_margin": true,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "GPS distance differs from reported distance by 33.1%"
+              "net profit -65.00 CU is negative",
+              "net profit trending down or loss-making on 2 of the last 3 days",
+              "margin -20.6% is below the 10% threshold"
             ]
           },
           {
-            "vehicle_id": "V037",
-            "revenue": 854.78,
-            "cost": 498.17,
-            "net_profit": 356.61,
-            "margin": 0.4172,
-            "utilization": 0.2109,
+            "vehicle_id": "V048",
+            "revenue": 1229.59,
+            "cost": 1213.59,
+            "net_profit": 16.0,
+            "margin": 0.013,
+            "utilization": 0.2495,
             "unprofitable": false,
-            "low_margin": false,
+            "low_margin": true,
             "becoming_unprofitable": false,
             "distance_mismatch": true,
-            "in_service": false,
+            "in_service": true,
             "reasons": [
-              "GPS distance differs from reported distance by 17.7%"
+              "margin 1.3% is below the 10% threshold",
+              "GPS distance differs from reported distance by 20.5%",
+              "vehicle was serviced or in the garage"
             ]
           },
           {
-            "vehicle_id": "V008",
-            "revenue": 829.12,
-            "cost": 469.05,
-            "net_profit": 360.07,
-            "margin": 0.4343,
-            "utilization": 0.2051,
+            "vehicle_id": "V021",
+            "revenue": 1075.09,
+            "cost": 983.98,
+            "net_profit": 91.11,
+            "margin": 0.0847,
+            "utilization": 0.2012,
             "unprofitable": false,
-            "low_margin": false,
+            "low_margin": true,
             "becoming_unprofitable": false,
-            "distance_mismatch": true,
-            "in_service": false,
+            "distance_mismatch": false,
+            "in_service": true,
             "reasons": [
-              "GPS distance differs from reported distance by 20.8%"
+              "margin 8.5% is below the 10% threshold",
+              "vehicle was serviced or in the garage"
             ]
           },
           {
-            "vehicle_id": "V023",
-            "revenue": 834.54,
-            "cost": 441.21,
-            "net_profit": 393.33,
-            "margin": 0.4713,
-            "utilization": 0.2134,
+            "vehicle_id": "V011",
+            "revenue": 573.21,
+            "cost": 371.84,
+            "net_profit": 201.37,
+            "margin": 0.3513,
+            "utilization": 0.1264,
             "unprofitable": false,
             "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "GPS distance differs from reported distance by 18.1%"
+              "net profit trending down or loss-making on 2 of the last 3 days"
             ]
           },
           {
-            "vehicle_id": "V017",
-            "revenue": 781.05,
-            "cost": 363.28,
-            "net_profit": 417.77,
-            "margin": 0.5349,
-            "utilization": 0.1835,
+            "vehicle_id": "V016",
+            "revenue": 753.29,
+            "cost": 436.17,
+            "net_profit": 317.12,
+            "margin": 0.421,
+            "utilization": 0.1617,
             "unprofitable": false,
             "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "GPS distance differs from reported distance by 23.8%"
+              "net profit trending down or loss-making on 2 of the last 3 days"
             ]
           },
           {
-            "vehicle_id": "V043",
-            "revenue": 1027.42,
-            "cost": 592.72,
-            "net_profit": 434.7,
-            "margin": 0.4231,
-            "utilization": 0.2267,
+            "vehicle_id": "V036",
+            "revenue": 860.73,
+            "cost": 491.34,
+            "net_profit": 369.39,
+            "margin": 0.4292,
+            "utilization": 0.2282,
             "unprofitable": false,
             "low_margin": false,
-            "becoming_unprofitable": false,
-            "distance_mismatch": true,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
             "in_service": false,
             "reasons": [
-              "GPS distance differs from reported distance by 17.5%"
+              "net profit trending down or loss-making on 2 of the last 3 days"
             ]
           },
           {
-            "vehicle_id": "V040",
-            "revenue": 1155.08,
-            "cost": 571.67,
-            "net_profit": 583.41,
-            "margin": 0.5051,
-            "utilization": 0.2861,
+            "vehicle_id": "V001",
+            "revenue": 945.26,
+            "cost": 462.79,
+            "net_profit": 482.47,
+            "margin": 0.5104,
+            "utilization": 0.1903,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": true,
+            "distance_mismatch": false,
+            "in_service": false,
+            "reasons": [
+              "net profit trending down or loss-making on 2 of the last 3 days"
+            ]
+          },
+          {
+            "vehicle_id": "V006",
+            "revenue": 1322.51,
+            "cost": 774.48,
+            "net_profit": 548.03,
+            "margin": 0.4144,
+            "utilization": 0.2808,
             "unprofitable": false,
             "low_margin": false,
             "becoming_unprofitable": false,
@@ -707,12 +572,76 @@
             ]
           },
           {
-            "vehicle_id": "V036",
-            "revenue": 1053.16,
+            "vehicle_id": "V047",
+            "revenue": 1287.66,
+            "cost": 706.49,
+            "net_profit": 581.17,
+            "margin": 0.4513,
+            "utilization": 0.2878,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": true,
+            "in_service": false,
+            "reasons": [
+              "GPS distance differs from reported distance by 33.4%"
+            ]
+          },
+          {
+            "vehicle_id": "V010",
+            "revenue": 1569.71,
+            "cost": 696.36,
+            "net_profit": 873.35,
+            "margin": 0.5564,
+            "utilization": 0.2974,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": true,
+            "in_service": false,
+            "reasons": [
+              "GPS distance differs from reported distance by 20.0%"
+            ]
+          },
+          {
+            "vehicle_id": "V045",
+            "revenue": 1376.44,
             "cost": 0.0,
-            "net_profit": 1053.16,
+            "net_profit": 1376.44,
             "margin": 1.0,
-            "utilization": 0.2093,
+            "utilization": 0.2673,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": false,
+            "in_service": false,
+            "reasons": [
+              "telemetry present but no expense row"
+            ]
+          },
+          {
+            "vehicle_id": "V032",
+            "revenue": 1647.13,
+            "cost": 0.0,
+            "net_profit": 1647.13,
+            "margin": 1.0,
+            "utilization": 0.3394,
+            "unprofitable": false,
+            "low_margin": false,
+            "becoming_unprofitable": false,
+            "distance_mismatch": false,
+            "in_service": false,
+            "reasons": [
+              "telemetry present but no expense row"
+            ]
+          },
+          {
+            "vehicle_id": "V050",
+            "revenue": 1658.33,
+            "cost": 0.0,
+            "net_profit": 1658.33,
+            "margin": 1.0,
+            "utilization": 0.3017,
             "unprofitable": false,
             "low_margin": false,
             "becoming_unprofitable": false,
@@ -729,44 +658,46 @@
     "pipeline-status": {
       "request": "GET /pipeline/status",
       "response": {
-        "sim_time": "2024-01-03T04:08:52.348680Z",
-        "latest_event_time": "2024-01-03T03:58:05.805540Z",
-        "lag_sim_minutes": 10.78,
+        "sim_time": "2024-01-05T06:30:14.004540Z",
+        "latest_event_time": "2024-01-05T06:04:29.500740Z",
+        "lag_sim_minutes": 25.74,
         "last_batch_run": {
-          "run_id": "2024-01-01_v2_51e7d32b",
-          "sim_date": "2024-01-01",
-          "expense_file_version": 2,
+          "run_id": "2024-01-04_v1_c373b805",
+          "sim_date": "2024-01-04",
+          "expense_file_version": 1,
           "status": "success",
           "expense_file_late": true,
-          "quarantined_rows": 0,
-          "clean_rows": 50,
+          "quarantined_rows": 3,
+          "clean_rows": 47,
           "vehicles_out": 50,
           "task_durations": {
-            "compute_drift": 0.024,
-            "generate_report": 0.032,
-            "load_batch_views": 2.191,
-            "validate_expenses": 0.012,
-            "check_expense_file": 0.011,
-            "compute_vehicle_day": 11.764,
+            "compute_drift": 0.039,
+            "generate_report": 0.051,
+            "load_batch_views": 1.167,
+            "validate_expenses": 0.029,
+            "check_expense_file": 0.013,
+            "compute_vehicle_day": 11.965,
             "reconcile_profitability": 0.384
           },
-          "started_at": "2026-09-25T06:10:00.806416Z",
-          "finished_at": "2026-09-25T06:10:26.956734Z",
-          "notes": "reconciled 50 vehicles for 2024-01-01"
+          "started_at": "2026-09-25T07:00:01.510245Z",
+          "finished_at": "2026-09-25T07:00:30.217184Z",
+          "notes": "reconciled 50 vehicles for 2024-01-04"
         },
-        "last_successful_sim_date": "2024-01-01",
+        "last_successful_sim_date": "2024-01-04",
         "drift": {
-          "sim_date": "2024-01-02",
-          "speed_revenue": 41088.1,
-          "batch_revenue": 41227.61,
-          "drift_abs": 139.51,
-          "drift_ratio": 0.003384,
-          "speed_trips": 316,
-          "batch_trips": 317
+          "sim_date": "2024-01-04",
+          "speed_revenue": 52594.9,
+          "batch_revenue": 52594.9,
+          "drift_abs": 0.0,
+          "drift_ratio": 0.0,
+          "speed_trips": 402,
+          "batch_trips": 402
         },
-        "open_idle_alerts": 4,
-        "dq_issues_last_run": 0,
+        "open_idle_alerts": 5,
+        "dq_issues_last_run": 3,
         "reconciled_dates": [
+          "2024-01-04",
+          "2024-01-03",
           "2024-01-02",
           "2024-01-01"
         ]

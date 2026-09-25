@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fleet profitability - 2024-01-04</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         margin: 0; padding: 32px; background: #f6f7f9; color: #1d2430; line-height: 1.5; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 32px 0 10px; padding-bottom: 6px;
+       border-bottom: 2px solid #e2e5ea; }
+  .sub { color: #5c6673; font-size: 0.9rem; margin-bottom: 24px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+  .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 8px;
+          padding: 14px 18px; min-width: 150px; flex: 1 1 150px; }
+  .card .label { font-size: 0.72rem; text-transform: uppercase;
+                 letter-spacing: 0.05em; color: #6b7480; }
+  .card .value { font-size: 1.45rem; font-weight: 600; margin-top: 4px; }
+  .neg { color: #b4232a; }
+  .pos { color: #1c7a43; }
+  table { border-collapse: collapse; width: 100%; background: #fff;
+          border: 1px solid #e2e5ea; border-radius: 8px; overflow: hidden;
+          font-size: 0.88rem; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #eef0f3; }
+  th { background: #f0f2f5; font-weight: 600; text-align: right;
+       font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:last-child td { border-bottom: none; }
+  .flag { display: inline-block; font-size: 0.72rem; padding: 1px 7px;
+          border-radius: 10px; margin-right: 4px; background: #eceff3; color: #47505d; }
+  .flag.bad { background: #fbe4e5; color: #9e1f26; }
+  .flag.warn { background: #fdf0da; color: #8a5a11; }
+  .reasons { font-size: 0.82rem; color: #5c6673; text-align: left; }
+  .meta { margin-top: 36px; font-size: 0.8rem; color: #6b7480;
+          border-top: 1px solid #e2e5ea; padding-top: 12px; }
+  .empty { background: #fff; border: 1px solid #e2e5ea; border-radius: 8px;
+           padding: 16px; color: #5c6673; font-size: 0.9rem; }
+  .note { background: #eef4fb; border: 1px solid #cfe0f2; border-radius: 8px;
+          padding: 12px 16px; font-size: 0.85rem; color: #23425f; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Fleet profitability &mdash; 2024-01-04</h1>
+  <div class="sub">
+    Reconciled from the complete telemetry archive and expense file
+    <strong>v1</strong>. All amounts in CU.
+  </div>
+
+  <h2>Fleet summary</h2>
+  <div class="cards">
+    <div class="card"><div class="label">Vehicles</div>
+      <div class="value">50</div></div>
+    <div class="card"><div class="label">Trips</div>
+      <div class="value">402</div></div>
+    <div class="card"><div class="label">Revenue</div>
+      <div class="value">52,594.90</div></div>
+    <div class="card"><div class="label">Cost</div>
+      <div class="value">27,505.21</div></div>
+    <div class="card"><div class="label">Net profit</div>
+      <div class="value pos">
+        25,089.69</div></div>
+    <div class="card"><div class="label">Margin</div>
+      <div class="value">47.7%</div></div>
+    <div class="card"><div class="label">Distance (GPS)</div>
+      <div class="value">5,404.00 km</div></div>
+    <div class="card"><div class="label">Utilization</div>
+      <div class="value">22.8%</div></div>
+  </div>
+
+  <h2>Requires attention</h2>
+  
+  <table>
+    <tr><th>Vehicle</th><th>Revenue</th><th>Cost</th><th>Net</th><th>Margin</th>
+        <th>Flags</th><th class="reasons">Why</th></tr>
+    
+    <tr>
+      <td><strong>V049</strong></td>
+      <td>84.55</td>
+      <td>685.08</td>
+      <td class="neg">-600.53</td>
+      <td>-710.3%</td>
+      <td>
+        <span class="flag bad">unprofitable</span>
+        
+        <span class="flag warn">low margin</span>
+        
+        <span class="flag">in service</span>
+        
+        
+      </td>
+      <td class="reasons">net profit -600.53 CU is negative; margin -710.3% is below the 10% threshold; vehicle was serviced or in the garage</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V034</strong></td>
+      <td>0.00</td>
+      <td>90.00</td>
+      <td class="neg">-90.00</td>
+      <td>0.0%</td>
+      <td>
+        <span class="flag bad">unprofitable</span>
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit -90.00 CU is negative; net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V039</strong></td>
+      <td>0.00</td>
+      <td>90.00</td>
+      <td class="neg">-90.00</td>
+      <td>0.0%</td>
+      <td>
+        <span class="flag bad">unprofitable</span>
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit -90.00 CU is negative; net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V009</strong></td>
+      <td>315.85</td>
+      <td>380.85</td>
+      <td class="neg">-65.00</td>
+      <td>-20.6%</td>
+      <td>
+        <span class="flag bad">unprofitable</span>
+        <span class="flag bad">declining</span>
+        <span class="flag warn">low margin</span>
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit -65.00 CU is negative; net profit trending down or loss-making on 2 of the last 3 days; margin -20.6% is below the 10% threshold</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V048</strong></td>
+      <td>1,229.59</td>
+      <td>1,213.59</td>
+      <td class="pos">16.00</td>
+      <td>1.3%</td>
+      <td>
+        
+        
+        <span class="flag warn">low margin</span>
+        <span class="flag warn">distance</span>
+        <span class="flag">in service</span>
+        
+        
+      </td>
+      <td class="reasons">margin 1.3% is below the 10% threshold; GPS distance differs from reported distance by 20.5%; vehicle was serviced or in the garage</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V021</strong></td>
+      <td>1,075.09</td>
+      <td>983.98</td>
+      <td class="pos">91.11</td>
+      <td>8.5%</td>
+      <td>
+        
+        
+        <span class="flag warn">low margin</span>
+        
+        <span class="flag">in service</span>
+        
+        
+      </td>
+      <td class="reasons">margin 8.5% is below the 10% threshold; vehicle was serviced or in the garage</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V011</strong></td>
+      <td>573.21</td>
+      <td>371.84</td>
+      <td class="pos">201.37</td>
+      <td>35.1%</td>
+      <td>
+        
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V016</strong></td>
+      <td>753.29</td>
+      <td>436.17</td>
+      <td class="pos">317.12</td>
+      <td>42.1%</td>
+      <td>
+        
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V036</strong></td>
+      <td>860.73</td>
+      <td>491.34</td>
+      <td class="pos">369.39</td>
+      <td>42.9%</td>
+      <td>
+        
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V001</strong></td>
+      <td>945.26</td>
+      <td>462.79</td>
+      <td class="pos">482.47</td>
+      <td>51.0%</td>
+      <td>
+        
+        <span class="flag bad">declining</span>
+        
+        
+        
+        
+        
+      </td>
+      <td class="reasons">net profit trending down or loss-making on 2 of the last 3 days</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V006</strong></td>
+      <td>1,322.51</td>
+      <td>774.48</td>
+      <td class="pos">548.03</td>
+      <td>41.4%</td>
+      <td>
+        
+        
+        
+        <span class="flag warn">distance</span>
+        
+        
+        
+      </td>
+      <td class="reasons">GPS distance differs from reported distance by 33.4%</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V047</strong></td>
+      <td>1,287.66</td>
+      <td>706.49</td>
+      <td class="pos">581.17</td>
+      <td>45.1%</td>
+      <td>
+        
+        
+        
+        <span class="flag warn">distance</span>
+        
+        
+        
+      </td>
+      <td class="reasons">GPS distance differs from reported distance by 33.4%</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V010</strong></td>
+      <td>1,569.71</td>
+      <td>696.36</td>
+      <td class="pos">873.35</td>
+      <td>55.6%</td>
+      <td>
+        
+        
+        
+        <span class="flag warn">distance</span>
+        
+        
+        
+      </td>
+      <td class="reasons">GPS distance differs from reported distance by 20.0%</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V045</strong></td>
+      <td>1,376.44</td>
+      <td>0.00</td>
+      <td class="pos">1,376.44</td>
+      <td>100.0%</td>
+      <td>
+        
+        
+        
+        
+        
+        <span class="flag warn">no costs</span>
+        
+      </td>
+      <td class="reasons">telemetry present but no expense row</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V032</strong></td>
+      <td>1,647.13</td>
+      <td>0.00</td>
+      <td class="pos">1,647.13</td>
+      <td>100.0%</td>
+      <td>
+        
+        
+        
+        
+        
+        <span class="flag warn">no costs</span>
+        
+      </td>
+      <td class="reasons">telemetry present but no expense row</td>
+    </tr>
+    
+    <tr>
+      <td><strong>V050</strong></td>
+      <td>1,658.33</td>
+      <td>0.00</td>
+      <td class="pos">1,658.33</td>
+      <td>100.0%</td>
+      <td>
+        
+        
+        
+        
+        
+        <span class="flag warn">no costs</span>
+        
+      </td>
+      <td class="reasons">telemetry present but no expense row</td>
+    </tr>
+    
+  </table>
+  
+
+  <h2>Most profitable</h2>
+  <table>
+    <tr><th>Vehicle</th><th>Trips</th><th>Revenue</th><th>Net</th><th>Margin</th>
+        <th>Rev/km</th><th>Utilization</th></tr>
+    
+    <tr><td><strong>V050</strong></td><td>11</td>
+        <td>1,658.33</td><td class="pos">1,658.33</td>
+        <td>100.0%</td><td>9.03</td>
+        <td>30.2%</td></tr>
+    
+    <tr><td><strong>V032</strong></td><td>12</td>
+        <td>1,647.13</td><td class="pos">1,647.13</td>
+        <td>100.0%</td><td>9.99</td>
+        <td>33.9%</td></tr>
+    
+    <tr><td><strong>V045</strong></td><td>9</td>
+        <td>1,376.44</td><td class="pos">1,376.44</td>
+        <td>100.0%</td><td>9.32</td>
+        <td>26.7%</td></tr>
+    
+    <tr><td><strong>V040</strong></td><td>15</td>
+        <td>1,871.15</td><td class="pos">1,099.11</td>
+        <td>58.7%</td><td>10.69</td>
+        <td>31.3%</td></tr>
+    
+    <tr><td><strong>V041</strong></td><td>11</td>
+        <td>1,573.35</td><td class="pos">962.31</td>
+        <td>61.2%</td><td>9.79</td>
+        <td>36.1%</td></tr>
+    
+  </table>
+
+  <h2>Least profitable</h2>
+  <table>
+    <tr><th>Vehicle</th><th>Trips</th><th>Revenue</th><th>Net</th><th>Margin</th>
+        <th>Cost/km</th><th>Utilization</th></tr>
+    
+    <tr><td><strong>V049</strong></td><td>1</td>
+        <td>84.55</td>
+        <td class="neg">-600.53</td>
+        <td>-710.3%</td><td>69.06</td>
+        <td>1.8%</td></tr>
+    
+    <tr><td><strong>V039</strong></td><td>0</td>
+        <td>0.00</td>
+        <td class="neg">-90.00</td>
+        <td>0.0%</td><td>552.15</td>
+        <td>0.0%</td></tr>
+    
+    <tr><td><strong>V034</strong></td><td>0</td>
+        <td>0.00</td>
+        <td class="neg">-90.00</td>
+        <td>0.0%</td><td>559.01</td>
+        <td>0.0%</td></tr>
+    
+    <tr><td><strong>V009</strong></td><td>3</td>
+        <td>315.85</td>
+        <td class="neg">-65.00</td>
+        <td>-20.6%</td><td>6.03</td>
+        <td>11.3%</td></tr>
+    
+    <tr><td><strong>V048</strong></td><td>9</td>
+        <td>1,229.59</td>
+        <td class="pos">16.00</td>
+        <td>1.3%</td><td>10.47</td>
+        <td>24.9%</td></tr>
+    
+  </table>
+
+  <h2>Distance mismatches</h2>
+  
+  <table>
+    <tr><th>Vehicle</th><th>GPS km</th><th>Reported km</th><th>Difference</th></tr>
+    
+    <tr><td><strong>V047</strong></td>
+        <td>130.26</td><td>97.62</td>
+        <td class="neg">33.4%</td></tr>
+    
+    <tr><td><strong>V006</strong></td>
+        <td>148.95</td><td>111.66</td>
+        <td class="neg">33.4%</td></tr>
+    
+    <tr><td><strong>V048</strong></td>
+        <td>115.89</td><td>145.74</td>
+        <td class="neg">20.5%</td></tr>
+    
+    <tr><td><strong>V010</strong></td>
+        <td>149.84</td><td>187.20</td>
+        <td class="neg">20.0%</td></tr>
+    
+  </table>
+  
+
+  <h2>Data quality</h2>
+  <div class="cards">
+    <div class="card"><div class="label">Expense rows quarantined</div>
+      <div class="value">3</div></div>
+    <div class="card"><div class="label">Clean expense rows</div>
+      <div class="value">47</div></div>
+    <div class="card"><div class="label">Speed-layer revenue</div>
+      <div class="value">52,594.90</div></div>
+    <div class="card"><div class="label">Batch revenue</div>
+      <div class="value">52,594.90</div></div>
+    <div class="card"><div class="label">Drift</div>
+      <div class="value">0.0%</div></div>
+  </div>
+
+  
+  <table style="margin-top:12px">
+    <tr><th>Quarantine reason</th><th>Rows</th></tr>
+    
+    <tr><td>missing_value</td><td>3</td></tr>
+    
+  </table>
+  
+
+  <div class="note" style="margin-top:14px">
+    <strong>On the drift figure.</strong> The speed layer applies a
+    10-simulated-minute watermark and therefore drops events that
+    arrive later than that; about 2% of events are delivered late by design. The
+    batch layer reads the complete archive after the day closes, so it sees them
+    all. A small positive drift (batch above speed) is expected and healthy. It is
+    the reason profitability is computed by the batch layer and not from the live
+    dashboard.
+  </div>
+
+  
+  <div class="note" style="margin-top:14px; background:#fdf0da; border-color:#f0d9ae; color:#8a5a11">
+    <strong>Late file.</strong> The expense file for this date missed its
+    120-simulated-minute SLA.
+  </div>
+  
+
+  <div class="meta">
+    Run id <strong>2024-01-04_v1_c373b805</strong> &middot;
+    expense file version <strong>v1</strong> &middot;
+    generated 2026-09-25 07:00:28 UTC &middot;
+    simulated date 2024-01-04
+  </div>
+
+</div>
+</body>
+</html>

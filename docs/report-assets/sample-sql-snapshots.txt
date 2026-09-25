@@ -1,4 +1,4 @@
--- captured 2026-09-25T06:10:58.678367+00:00
+-- captured 2026-09-25T07:01:18.103549+00:00
 
 -- drift
 -- SELECT sim_date, speed_revenue, batch_revenue, drift_abs, drift_ratio, speed_trips, batch_trips FROM speed_batch_drift ORDER BY sim_date
@@ -6,7 +6,9 @@
 ------------+---------------+---------------+-----------+-------------+-------------+-------------
  2024-01-01 |      49434.23 |      49434.23 |        -0 |          -0 |         378 |         378
  2024-01-02 |       41088.1 |      41227.61 |    139.51 |    0.003384 |         316 |         317
-(2 rows)
+ 2024-01-03 |      54389.22 |      54389.22 |        -0 |          -0 |         428 |         428
+ 2024-01-04 |       52594.9 |       52594.9 |         0 |           0 |         402 |         402
+(4 rows)
 
 
 
@@ -14,20 +16,26 @@
 -- SELECT run_id, sim_date, expense_file_version, status, expense_file_late, quarantined_rows, clean_rows, vehicles_out FROM batch_runs ORDER BY started_at DESC LIMIT 10
          run_id         |  sim_date  | expense_file_version | status  | expense_file_late | quarantined_rows | clean_rows | vehicles_out 
 ------------------------+------------+----------------------+---------+-------------------+------------------+------------+--------------
- 2024-01-01_v2_51e7d32b | 2024-01-01 |                    2 | success | t                 |                0 |         50 |           50
+ 2024-01-04_v1_c373b805 | 2024-01-04 |                    1 | success | t                 |                3 |         47 |           50
+ 2024-01-04_v0_5fd45d59 | 2024-01-04 |                    0 | failed  | t                 |                0 |          0 |            0
+ 2024-01-03_v1_97675b9b | 2024-01-03 |                    1 | success | f                 |                3 |         48 |           50
+ 2024-01-01_v2_51e7d32b | 2024-01-01 |                    2 | success | f                 |                0 |         50 |           50
  2024-01-02_v1_43ab2977 | 2024-01-02 |                    1 | success | f                 |                1 |         49 |           50
  2024-01-01_v1_30dea3cb | 2024-01-01 |                    1 | success | f                 |                1 |         49 |           50
-(3 rows)
+(6 rows)
 
 
 
 -- dq_issues
 -- SELECT sim_date, reason, count(*) FROM dq_issues GROUP BY sim_date, reason ORDER BY sim_date DESC, 3 DESC
-  sim_date  |     reason     | count 
-------------+----------------+-------
- 2024-01-02 | negative_value |     1
- 2024-01-01 | negative_value |     1
-(2 rows)
+  sim_date  |     reason      | count 
+------------+-----------------+-------
+ 2024-01-04 | missing_value   |     3
+ 2024-01-03 | missing_value   |     2
+ 2024-01-03 | unknown_vehicle |     1
+ 2024-01-02 | negative_value  |     1
+ 2024-01-01 | negative_value  |     1
+(5 rows)
 
 
 
@@ -37,6 +45,8 @@
 ------------+--------------+----------+------------+-------------------+------------
  2024-01-01 |            6 |        0 |          5 |                 2 |          1
  2024-01-02 |            4 |        0 |          3 |                21 |          3
-(2 rows)
+ 2024-01-03 |            3 |        6 |          3 |                 6 |          1
+ 2024-01-04 |            4 |        7 |          4 |                 4 |          3
+(4 rows)
 
 

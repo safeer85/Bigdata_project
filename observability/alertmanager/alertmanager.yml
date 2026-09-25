@@ -33,3 +33,11 @@ inhibit_rules:
   - source_matchers: [alertname="ApiDown"]
     target_matchers: [stage="orchestration"]
     equal: [project]
+
+  # A missing partner file makes the reconciliation record a failed run, so
+  # BatchRunFailed fires too -- two alerts, one cause, and the second one is
+  # misleading: nothing in the pipeline is broken, we are simply waiting on the
+  # partner. ExpenseFileLate is the actionable one, so it suppresses the other.
+  - source_matchers: [alertname="ExpenseFileLate"]
+    target_matchers: [alertname="BatchRunFailed"]
+    equal: [project]

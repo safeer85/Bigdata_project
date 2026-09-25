@@ -249,7 +249,18 @@ def check_batch_layer(timeout_s: int) -> None:
     if not record("batch_vehicle_daily populated", ok, f"{count} rows"):
         return
 
-    sim_date = psql("SELECT max(sim_date)::text FROM batch_vehicle_daily")
+    # Anchor every downstream check on the latest date that has a COMPLETED,
+    # SUCCESSFUL run -- not simply max(sim_date). `load_batch_views` inserts the
+    # rows several tasks before `generate_report` writes the file, so using
+    # max(sim_date) raced the DAG and 404'd on a report that was about to exist.
+    sim_date = psql(
+        "SELECT max(sim_date)::text FROM batch_runs "
+        "WHERE status = 'success' AND vehicles_out > 0"
+    )
+    if not sim_date:
+        record("a simulated day has been fully reconciled", False,
+               "rows exist but no run has finished yet")
+        return
 
     try:
         urllib.request.urlopen(f"{API}/reports/{sim_date}", timeout=15)
@@ -273,8 +284,24 @@ def check_batch_layer(timeout_s: int) -> None:
     record("speed/batch drift recorded", drift != "",
            f"drift_ratio={drift} (non-zero is expected)")
 
-    status = psql("SELECT status FROM batch_runs ORDER BY started_at DESC LIMIT 1")
-    record("last batch run succeeded", status == "success", f"status={status}")
+    # Look at the last FINISHED run, not simply the last one. The DAG polls every
+    # 2 real minutes, so a run is often in flight when the smoke test looks -- and
+    # "status=running" is a healthy pipeline, not a failure. Asserting on the most
+    # recent row regardless of state made this check fail intermittently.
+    # Check the newest run FOR THE RECONCILED DATE, not the newest run overall.
+    # Two things otherwise make this flap without anything being wrong: a run is
+    # often in flight (the DAG polls every 2 real minutes), and `make demo-late-file`
+    # deliberately records a FAILED marker row for a day whose file never arrived,
+    # which is then superseded by a successful run once the partner delivers.
+    status = psql(
+        "SELECT status FROM batch_runs WHERE sim_date = '" + sim_date + "' "
+        "ORDER BY started_at DESC LIMIT 1"
+    )
+    in_flight = psql("SELECT count(*) FROM batch_runs WHERE status = 'running'")
+    detail = f"{sim_date} status={status}"
+    if in_flight not in ("", "0"):
+        detail += f" ({in_flight} other run(s) in flight, which is normal)"
+    record("the latest reconciled day ran successfully", status == "success", detail)
 
 
 def main() -> int:

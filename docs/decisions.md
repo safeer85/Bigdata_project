@@ -474,6 +474,39 @@ granularity is one line per micro-batch with counts.
 
 ---
 
+## 23b. Evidence from a real four-day run
+
+Everything below came out of one continuous run of the stack, not from a tuned demo.
+
+| Simulated day | Fleet margin | Unprofitable | Becoming unprofitable | Distance mismatches | Revenue drift |
+|---|---|---|---|---|---|
+| 2024-01-01 (partial) | 42.8% | 6 | 0 | 2 | 0.000000 |
+| 2024-01-02 | 38.3% | 4 | 0 | **21** | **0.003384** |
+| 2024-01-03 | 45.8% | 3 | 6 | 6 | 0.000000 |
+| 2024-01-04 | 47.7% | 4 | 7 | 4 | 0.000000 |
+
+Four things in that table are worth pointing at in the report.
+
+**The unprofitable count is a handful, not a majority.** 3-6 of 50 per day, after the
+calibration in decision 18. Before it, the number was 35 of 50 and the report said nothing.
+
+**`becoming_unprofitable` is empty for the first two days and then populates.** That is correct
+behaviour, not a bug: the rule refuses to call a trend from fewer than three points, so it
+cannot fire until day 3.
+
+**Day 2's 21 distance mismatches are our own fault, and the fix is visible.** A container
+restart during that day lost ~90 km of odometer ledger (decision 19). After the checkpoint
+interval was tightened, day 3 dropped to 6 and day 4 to 4, against a configured discrepancy
+rate of 3%.
+
+**The drift is non-zero on exactly one day of four**, and on that day `speed_trips` was 316
+against `batch_trips` of 317 - a single late `trip_end` dropped by the watermark and recovered
+by the batch layer. That is precisely the ~0.5 dropped trips per day the arithmetic in decision
+6 predicts. It is the clearest single piece of evidence in the project: the mechanism is real,
+measurable, and small.
+
+---
+
 ## 24. Known limitations
 
 Stated plainly, because a report that claims no weaknesses is not believed.
