@@ -38,15 +38,18 @@ up-tools: .env ## Same as `up`, plus the optional Kafka UI
 wait: ## Block until the core services report healthy
 	@python scripts/wait_for_stack.py
 
+# Ports are read from .env so this never advertises a URL the stack is not on.
+PORT = $(shell grep -E "^$(1)=" .env 2>/dev/null | cut -d= -f2 | tr -d "[:space:]")
+
 urls: ## Print every UI the demo uses
 	@echo ""
-	@echo "  API docs        http://localhost:8000/docs"
-	@echo "  Grafana         http://localhost:3000       (admin/admin)"
-	@echo "  Airflow         http://localhost:8088       (admin/admin)"
-	@echo "  Prometheus      http://localhost:9090"
-	@echo "  Alertmanager    http://localhost:9093"
-	@echo "  Spark master    http://localhost:8080"
-	@echo "  Kafka UI        http://localhost:8090       (make up-tools)"
+	@echo "  API docs        http://localhost:$(or $(call PORT,API_HOST_PORT),8000)/docs"
+	@echo "  Grafana         http://localhost:$(or $(call PORT,GRAFANA_HOST_PORT),3000)       (admin/admin)"
+	@echo "  Airflow         http://localhost:$(or $(call PORT,AIRFLOW_HOST_PORT),8088)       (admin/admin)"
+	@echo "  Prometheus      http://localhost:$(or $(call PORT,PROMETHEUS_HOST_PORT),9090)"
+	@echo "  Alertmanager    http://localhost:$(or $(call PORT,ALERTMANAGER_HOST_PORT),9093)"
+	@echo "  Spark master    http://localhost:$(or $(call PORT,SPARK_MASTER_UI_PORT),8080)"
+	@echo "  Kafka UI        http://localhost:$(or $(call PORT,KAFKA_UI_HOST_PORT),8090)       (make up-tools)"
 	@echo ""
 
 down: ## Stop everything, keep the data

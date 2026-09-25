@@ -51,15 +51,30 @@ function Ensure-Env {
     }
 }
 
+function Get-EnvPort {
+    <#
+        Read a port out of .env, falling back to the conventional default.
+        Show-Urls printed hardcoded ports before this existed, so on a machine
+        that had overridden them it confidently advertised the wrong URLs.
+    #>
+    param([string] $Name, [string] $Default)
+
+    if (Test-Path ".env") {
+        $line = Select-String -Path ".env" -Pattern "^$Name=" | Select-Object -First 1
+        if ($line) { return $line.Line.Split("=", 2)[1].Trim() }
+    }
+    return $Default
+}
+
 function Show-Urls {
     Write-Host ""
-    Write-Host "  API docs        http://localhost:8000/docs"
-    Write-Host "  Grafana         http://localhost:3000       (admin/admin)"
-    Write-Host "  Airflow         http://localhost:8088       (admin/admin)"
-    Write-Host "  Prometheus      http://localhost:9090"
-    Write-Host "  Alertmanager    http://localhost:9093"
-    Write-Host "  Spark master    http://localhost:8080"
-    Write-Host "  Kafka UI        http://localhost:8090       (.\make.ps1 up-tools)"
+    Write-Host "  API docs        http://localhost:$(Get-EnvPort 'API_HOST_PORT' '8000')/docs"
+    Write-Host "  Grafana         http://localhost:$(Get-EnvPort 'GRAFANA_HOST_PORT' '3000')       (admin/admin)"
+    Write-Host "  Airflow         http://localhost:$(Get-EnvPort 'AIRFLOW_HOST_PORT' '8088')       (admin/admin)"
+    Write-Host "  Prometheus      http://localhost:$(Get-EnvPort 'PROMETHEUS_HOST_PORT' '9090')"
+    Write-Host "  Alertmanager    http://localhost:$(Get-EnvPort 'ALERTMANAGER_HOST_PORT' '9093')"
+    Write-Host "  Spark master    http://localhost:$(Get-EnvPort 'SPARK_MASTER_UI_PORT' '8080')"
+    Write-Host "  Kafka UI        http://localhost:$(Get-EnvPort 'KAFKA_UI_HOST_PORT' '8090')       (.\make.ps1 up-tools)"
     Write-Host ""
 }
 
