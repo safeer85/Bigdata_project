@@ -14,3 +14,6 @@ landing/
 .DS_Store
 .idea/
 .vscode/
+
+# The submitted report is a deliverable and IS tracked.
+!docs/report.pdf

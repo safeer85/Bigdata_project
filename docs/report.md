@@ -40,25 +40,12 @@ A **Lambda architecture**: an immutable master dataset written by a dedicated ar
 *speed layer* computing approximate live views, and a *batch layer* recomputing exact views
 from the complete archive.
 
-```
-                                  ┌──────────────────────────────────────┐
-  telemetry simulator ──Kafka──┬─▶│ archiver  (no business logic)        │──▶ Parquet lake
-   50 vehicles, sim clock      │  └──────────────────────────────────────┘   (master dataset,
-   faults injected on purpose  │                                              partitioned by
-                               │  ┌──────────────────────────────────────┐    event date)
-                               └─▶│ speed layer (Structured Streaming)   │            │
-                                  │  validate→DLQ, dedup, zones,         │            │
-                                  │  idle alerts, hourly & daily aggs    │            │
-                                  └───────────────┬──────────────────────┘            │
-                                                  │ rt_* tables                       │
-  expense dropper ──CSV──▶ /landing               ▼                                   ▼
-   one file per sim day         ┌────────────▶ PostgreSQL ◀──────── batch layer (Airflow + Spark)
-   resubmittable as v2          │              batch_* tables       exact, complete, rerunnable
-                                │                   │
-                       FastAPI ─┘                   └─▶ Grafana ─▶ Prometheus / Alertmanager
-                    merges both layers,
-                  labelling every figure
-```
+![Figure 1](report-assets/fig1-architecture.svg)
+
+***Figure 1** — System architecture. The blue path is the speed layer (seconds old,
+approximate); the amber path is the batch layer (exact, complete, recomputable). Both depend on
+the same immutable master dataset, and both import every shared business rule from `common/`.*
+
 
 ### 2.2 Why Kappa was rejected
 
@@ -255,6 +242,12 @@ up to **20 simulated minutes**. The gap is deliberate. A watermark of 25 would c
 the two layers would agree perfectly, and the project would have no evidence for why the batch
 layer exists. A regression test fails if anyone raises it.
 
+![Figure 2](report-assets/fig2-consistency.svg)
+
+***Figure 2** — Why the two layers disagree, and by how much. An event's lateness decides which
+layer counts it; the funnel shows why that translates into a near-zero revenue drift on a
+typical day.*
+
 ### 6.1 Results over four simulated days
 
 | Simulated day | Fleet margin | Unprofitable | Becoming unprofitable | Distance mismatches | Revenue drift |
@@ -315,7 +308,7 @@ Two experiments confirm the property the architecture exists to provide:
 
 ---
 
-## 7. Storage, serving and observability
+## 7. Storage and serving
 
 ### 7.1 The Lambda merge is explicit, never blended
 
@@ -336,7 +329,61 @@ up in a financial statement.
 clock — so if ingestion stalls, "now" stops advancing and the active-vehicle count correctly
 falls to zero rather than quietly lying.
 
-### 7.2 Observability decisions worth defending
+---
+
+## 8. Observability design
+
+### 8.1 What is measured, and why
+
+Three questions drive every metric. Nothing is collected because it was easy to collect.
+
+| Question | Metrics | Why it is not obvious |
+|---|---|---|
+| *Is data arriving?* | `fleet_events_produced_total{event_type}`, `fleet_faults_injected_total{kind}` | Distinguishes "the producer is silent" from "the producer is gone" — the alert needs both `increase()==0` and `absent()`. |
+| *Is it being processed?* | `fleet_stream_last_progress_timestamp{query}`, `..._processed_rows_per_second`, `..._offsets_behind_latest` | Freshness is per-query, not per-process. A container can be perfectly healthy while one of its five queries is frozen. |
+| *Is it correct?* | `fleet_dlq_events_total{reason}`, `fleet_late_rows_dropped_total`, `fleet_speed_batch_drift_ratio` | These measure *known, accepted* imprecision. A pipeline that cannot quantify its own error cannot be trusted with money. |
+| *Is the business healthy?* | `fleet_open_idle_alerts`, the profitability flags | Deliberately separate from pipeline health: `IdleVehiclesHigh` fires when everything is working and the fleet simply is not earning. |
+
+### 8.2 Structured logging across all stages
+
+Every log line is a single JSON object carrying `ts`, `level`, `service`, **`stage`**
+(`ingestion`/`processing`/`storage`/`serving`/`orchestration`), `event`, `msg` and
+**`sim_time`**.
+
+`sim_time` is the field that matters here. On a compressed clock a wall-clock timestamp tells
+you nothing about *which simulated hour* a line belongs to, so every line carries both. Filtering
+by stage is what makes a cross-cutting failure diagnosable:
+
+```bash
+make logs s=speed   | grep '"event": "micro_batch"'
+make logs s=airflow | grep '"event": "reconciliation_complete"'
+```
+
+Per-event logging is **sampled 1-in-N**: at 50 vehicles emitting every 2 seconds, an INFO line
+per event would bury everything else. The useful granularity is one line per micro-batch
+carrying counts.
+
+### 8.3 Tracing — an honest position
+
+We do **not** implement distributed tracing (OpenTelemetry spans). What we implement is
+**correlation-ID propagation**, which gives most of the diagnostic value at a fraction of the
+operational cost for a pipeline of this size:
+
+| Id | Propagated through |
+|---|---|
+| `event_id` | producer → Kafka → archiver → DLQ → batch dedup |
+| `vehicle_id` | every stage, and it is the Kafka partition key |
+| `run_id` | every Airflow task, `batch_runs`, `dq_issues`, `batch_vehicle_daily` |
+| `sim_date` | the lake partition, every batch table, the report filename |
+
+A single rejected event can be traced from its DLQ reason back to its original payload; a single
+reconciled figure can be traced back to the run and expense-file version that produced it. What
+this does *not* give is per-request span timing across service boundaries. For a pipeline whose
+hops are Kafka offsets and Parquet partitions rather than RPC calls, spans would add
+infrastructure without answering a question we actually have. At production scale this changes —
+see §12.
+
+### 8.4 Alerting decisions worth defending
 
 **Kafka lag comes from Spark's own query progress, not a lag exporter.** Structured Streaming
 does not commit consumer-group offsets — it tracks them in its checkpoint — so
@@ -365,7 +412,7 @@ durations: `compute_vehicle_day` 9.44 s, `load_batch_views` 0.99 s, `reconcile_p
 
 ---
 
-## 8. What running it actually taught us
+## 9. What running it actually taught us
 
 Six defects were found by operating the system, not by reading the code. They are reported
 because each one generalises.
@@ -409,7 +456,7 @@ function binding docker's `-d` flag to itself so the stack came up in the foregr
 
 ---
 
-## 9. Verification summary
+## 10. Verification summary
 
 | Check | Result |
 |---|---|
@@ -422,7 +469,7 @@ function binding docker's `-d` flag to itself so the stack came up in the foregr
 
 ---
 
-## 10. Known limitations
+## 11. Known limitations
 
 Stated plainly, because a report claiming no weaknesses is not believed.
 
@@ -449,7 +496,96 @@ Stated plainly, because a report claiming no weaknesses is not believed.
 
 ---
 
-## 11. Conclusion
+---
+
+## 12. At production scale: what we would do differently
+
+Everything below is a deliberate simplification for a two-week, single-laptop project, paired
+with what would actually be required if this ran a real fleet.
+
+### 12.1 Ingestion
+
+**Today:** one Kafka broker, replication factor 1, 6 partitions, 7-day retention.
+**At scale:** a minimum of three brokers with RF 3 and `min.insync.replicas=2`. Today a broker
+loss means losing anything not yet archived — acceptable for a demo, indefensible for revenue
+data. Partition count would be driven by measured consumer throughput, but the *keying* would
+not change: `vehicle_id` keying is a correctness constraint, not a tuning knob, and it caps
+useful parallelism at the number of vehicles.
+
+**Schema governance.** We version events with `schema_version` and validate defensively. A
+production deployment would put a **schema registry** (Avro or Protobuf) in front of the topic
+so incompatible producers are rejected at publish time rather than discovered in the DLQ. The
+DLQ would also gain an automated replay path; today replay is manual.
+
+### 12.2 Storage
+
+**Today:** Parquet on a Docker volume, partitioned by `sim_date`.
+**At scale:** object storage (S3/GCS) — already a one-variable change, since every path is built
+from `LAKE_ROOT`. Two additions would matter quickly:
+
+- **A table format** (Iceberg or Delta Lake) for atomic partition overwrites, schema evolution
+  and time travel. Our `load_batch_views` achieves atomicity inside PostgreSQL via
+  delete-then-insert in a transaction; the *lake* copy has no such guarantee, so a failed
+  curated write can leave a partial partition.
+- **Compaction.** The archiver writes every 30 seconds, which is a deliberate small-files
+  trade-off. At real volume a scheduled compaction job becomes mandatory, or the batch *read*
+  ends up slower than the batch *compute*.
+
+### 12.3 Processing
+
+**Today:** Spark standalone, one worker, 3 cores, both streaming applications co-resident.
+**At scale:** Kubernetes with the Spark operator, giving per-application resource isolation and
+autoscaling. The single most valuable change would be **decoupling the archiver from the speed
+layer entirely** — they already have separate checkpoints, but they currently compete for the
+same worker's cores, which is how we lost 26 minutes of archiving (§9).
+
+**Batch would stop running in local mode.** That choice is sound at 12k events/day and wrong at
+12M; `compute_vehicle_day` is already written as ordinary Spark SQL, so the change is a
+submission target, not a rewrite.
+
+### 12.4 Serving
+
+**Today:** a single PostgreSQL instance serving both layers, queried directly by Grafana.
+**At scale:** the access patterns genuinely diverge. `rt_*` is high-frequency point lookups and
+upserts; `batch_*` is analytical scans over history. We would keep PostgreSQL for the real-time
+tables, add read replicas for Grafana so dashboard queries cannot slow the streaming sinks, and
+move `batch_vehicle_daily` to a columnar warehouse once history outgrew a single node.
+
+The API would gain caching on `/fleet/live` (it is read far more often than the underlying data
+changes) and authentication, which is explicitly out of scope here.
+
+### 12.5 Observability
+
+**Today:** Prometheus, Alertmanager, Grafana, structured JSON logs, correlation IDs.
+**At scale:** three additions, in priority order.
+
+1. **Log aggregation** (Loki, or ELK). Today diagnosing a cross-service issue means
+   `docker compose logs` per service. The logs are already structured JSON with a `stage` field
+   specifically so they can be shipped and queried without reformatting — this is a deployment
+   step, not a code change.
+2. **Real distributed tracing.** As argued in §8.3, spans buy little for a Kafka-and-Parquet
+   pipeline at this size. That calculus flips once there are multiple upstream producers and
+   several consuming services, where "which producer caused this DLQ spike?" stops being
+   answerable from correlation IDs alone.
+3. **SLOs with error budgets**, replacing fixed thresholds. `IdleVehiclesHigh > 8` is a magic
+   number tuned to a 50-vehicle fleet; it does not survive the fleet doubling. An SLO expressed
+   as a *ratio* would.
+
+### 12.6 The simulated clock
+
+This is the largest single simplification and it has a subtle consequence worth stating.
+Because simulated time is derived from wall-clock elapsed time, **the pipeline being down does
+not pause the world** — simulated hours keep passing with no events emitted, creating a genuine
+data gap. We observed exactly this: a simulated day degraded measurably during our own outage
+testing (§11).
+
+The pipeline reports the reduced revenue faithfully rather than fabricating it, which is the
+correct behaviour. But it means **operational downtime is indistinguishable from low demand in
+the data**. A production system would annotate known outage windows so that downstream
+consumers — and the `becoming_unprofitable` trend rule in particular — can exclude them rather
+than mistaking an incident for a commercial decline.
+
+## 13. Conclusion
 
 The business question posed by the brief contains two sub-questions with incompatible latency,
 accuracy and recomputability requirements. A Lambda architecture is justified here not by

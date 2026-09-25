@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 560" width="1160" height="560"
+     font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Figure 2 - Why the two layers disagree, and by how much</title>
+
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect width="1160" height="560" fill="#ffffff"/>
+
+  <text x="20" y="30" font-size="15" font-weight="700" fill="#0f172a">
+    An event's lateness decides which layer counts it
+  </text>
+  <text x="20" y="50" font-size="11.5" fill="#64748b">
+    Lateness is injected uniformly between 1 and 20 simulated minutes. The speed layer's watermark is 10.
+  </text>
+
+  <!-- ===================== timeline axis ===================== -->
+  <line x1="120" y1="150" x2="1000" y2="150" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="1010" y="155" font-size="11.5" fill="#475569">lateness</text>
+
+  <!-- ticks 0..20 -->
+  <g font-size="11" fill="#64748b" text-anchor="middle">
+    <line x1="120" y1="145" x2="120" y2="157" stroke="#334155" stroke-width="1.6"/><text x="120" y="176">0 min</text>
+    <line x1="340" y1="145" x2="340" y2="157" stroke="#94a3b8"/><text x="340" y="176">5</text>
+    <line x1="560" y1="145" x2="560" y2="157" stroke="#334155" stroke-width="1.6"/><text x="560" y="176">10</text>
+    <line x1="780" y1="145" x2="780" y2="157" stroke="#94a3b8"/><text x="780" y="176">15</text>
+    <line x1="1000" y1="145" x2="1000" y2="157" stroke="#334155" stroke-width="1.6"/><text x="1000" y="176">20</text>
+  </g>
+
+  <!-- zone: counted by both -->
+  <rect x="120" y="86" width="440" height="52" rx="5" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="340" y="106" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="middle">Inside the watermark</text>
+  <text x="340" y="125" font-size="11" fill="#1e40af" text-anchor="middle">counted by BOTH layers - they agree</text>
+
+  <!-- zone: batch only -->
+  <rect x="560" y="86" width="440" height="52" rx="5" fill="#fffbeb" stroke="#b45309" stroke-width="1.6"/>
+  <text x="780" y="106" font-size="12.5" font-weight="700" fill="#7c2d12" text-anchor="middle">Past the watermark</text>
+  <text x="780" y="125" font-size="11" fill="#92400e" text-anchor="middle">DROPPED by speed, KEPT by batch</text>
+
+  <!-- watermark marker -->
+  <line x1="560" y1="70" x2="560" y2="200" stroke="#b91c1c" stroke-width="2.4" stroke-dasharray="6 4"/>
+  <text x="570" y="68" font-size="12" font-weight="700" fill="#b91c1c">watermark = 10 simulated minutes</text>
+
+  <text x="120" y="204" font-size="11" fill="#475569">
+    The gap is deliberate. A watermark of 25 would make the layers agree perfectly - and remove all evidence for the batch layer.
+  </text>
+
+  <!-- ===================== the funnel ===================== -->
+  <text x="20" y="254" font-size="15" font-weight="700" fill="#0f172a">
+    Why the revenue drift is usually zero anyway
+  </text>
+  <text x="20" y="274" font-size="11.5" fill="#64748b">
+    Measured over one simulated day. Each step narrows the number of events that can actually move the money figure.
+  </text>
+
+  <g font-size="12">
+    <!-- step 1 -->
+    <rect x="30" y="292" width="290" height="46" rx="5" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="175" y="312" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="middle">11,972 events produced</text>
+    <text x="175" y="330" font-size="11" fill="#475569" text-anchor="middle">one simulated day</text>
+
+    <text x="334" y="320" font-size="18" fill="#94a3b8">&#8594;</text>
+
+    <!-- step 2 -->
+    <rect x="360" y="292" width="240" height="46" rx="5" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="480" y="312" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="middle">225 injected late</text>
+    <text x="480" y="330" font-size="11" fill="#475569" text-anchor="middle">1.9% - as configured</text>
+
+    <text x="614" y="320" font-size="18" fill="#94a3b8">&#8594;</text>
+
+    <!-- step 3 -->
+    <rect x="640" y="292" width="230" height="46" rx="5" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5"/>
+    <text x="755" y="312" font-size="12.5" font-weight="700" fill="#7f1d1d" text-anchor="middle">15 dropped by watermark</text>
+    <text x="755" y="330" font-size="11" fill="#b91c1c" text-anchor="middle">measured, not estimated</text>
+
+    <text x="884" y="320" font-size="18" fill="#94a3b8">&#8594;</text>
+
+    <!-- step 4 -->
+    <rect x="910" y="292" width="230" height="46" rx="5" fill="#fffbeb" stroke="#b45309" stroke-width="1.8"/>
+    <text x="1025" y="312" font-size="12.5" font-weight="700" fill="#7c2d12" text-anchor="middle">~0.5 revenue-bearing</text>
+    <text x="1025" y="330" font-size="11" fill="#92400e" text-anchor="middle">only 3.4% are trip_end</text>
+  </g>
+
+  <text x="30" y="364" font-size="11.5" fill="#475569">
+    15 dropped rows &#215; 3.4% trip_end share &#8776; <tspan font-weight="700" fill="#0f172a">half of one</tspan> revenue-bearing event per day.
+    Zero drift is therefore the single most likely daily outcome.
+  </text>
+
+  <!-- ===================== four-day results ===================== -->
+  <text x="20" y="410" font-size="15" font-weight="700" fill="#0f172a">Measured across four simulated days</text>
+
+  <g font-size="12">
+    <!-- header -->
+    <rect x="30" y="424" width="1110" height="26" fill="#f1f5f9"/>
+    <g font-size="11.5" font-weight="700" fill="#334155">
+      <text x="44"  y="442">Simulated day</text>
+      <text x="230" y="442">Speed revenue</text>
+      <text x="400" y="442">Batch revenue</text>
+      <text x="570" y="442">Drift</text>
+      <text x="700" y="442">Speed trips</text>
+      <text x="840" y="442">Batch trips</text>
+      <text x="960" y="442">Interpretation</text>
+    </g>
+
+    <g font-size="11.5" fill="#334155">
+      <text x="44"  y="470">2024-01-01</text>
+      <text x="230" y="470">49,434.23</text>
+      <text x="400" y="470">49,434.23</text>
+      <text x="570" y="470">0.000000</text>
+      <text x="700" y="470">378</text>
+      <text x="840" y="470">378</text>
+      <text x="960" y="470" fill="#64748b">no trip dropped</text>
+    </g>
+
+    <!-- the highlighted row -->
+    <rect x="30" y="478" width="1110" height="30" fill="#fffbeb" stroke="#b45309" stroke-width="1.6"/>
+    <g font-size="11.5" font-weight="700" fill="#7c2d12">
+      <text x="44"  y="498">2024-01-02</text>
+      <text x="230" y="498">41,088.10</text>
+      <text x="400" y="498">41,227.61</text>
+      <text x="570" y="498">0.003384</text>
+      <text x="700" y="498">316</text>
+      <text x="840" y="498">317</text>
+      <text x="960" y="498">one late trip_end recovered</text>
+    </g>
+
+    <g font-size="11.5" fill="#334155">
+      <text x="44"  y="526">2024-01-03</text>
+      <text x="230" y="526">-</text>
+      <text x="400" y="526">-</text>
+      <text x="570" y="526">0.000000</text>
+      <text x="700" y="526">428</text>
+      <text x="840" y="526">428</text>
+      <text x="960" y="526" fill="#64748b">no trip dropped</text>
+
+      <text x="44"  y="548">2024-01-04</text>
+      <text x="230" y="548">-</text>
+      <text x="400" y="548">-</text>
+      <text x="570" y="548">0.000000</text>
+      <text x="700" y="548">402</text>
+      <text x="840" y="548">402</text>
+      <text x="960" y="548" fill="#64748b">no trip dropped</text>
+    </g>
+  </g>
+</svg>

@@ -242,6 +242,7 @@ docs/            SPEC.md, report.md, decisions.md, runbook.md, walkthrough.md,
 
 | Document | Purpose |
 |---|---|
+| [`docs/report.pdf`](docs/report.pdf) | **The submitted report (PDF, 13 pages).** Rebuild with `python scripts/build_report_pdf.py`. |
 | [`docs/demo-script.md`](docs/demo-script.md) | **Shot-by-shot script for recording the 7-minute demo video**, including how to hide the pipeline's real waits. |
 | [`docs/report.md`](docs/report.md) | **The written report.** The architecture argument and the measured evidence, structured against the marking criteria. |
 | [`docs/decisions.md`](docs/decisions.md) | Every non-trivial choice, alternatives considered, and the six defects found by running it. |
