@@ -53,8 +53,8 @@ Plus **two terminals**, both already `cd`'d into the project: one for commands, 
 **4. Pre-log-in to Grafana and Airflow.** A login screen on camera wastes 20 seconds and looks
 unprepared.
 
-**5. Know your numbers.** Have `docs/report.md` §6 open off-camera. The drift figure is the
-single most important thing you will say.
+**5. Know your numbers.** Have `docs/report.pdf` §5.2 (the consistency argument) open
+off-camera. The drift figure is the single most important thing you will say.
 
 ---
 

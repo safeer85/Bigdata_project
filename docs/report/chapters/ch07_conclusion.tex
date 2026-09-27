@@ -1,0 +1,90 @@
+\chapter{Conclusions and Recommendations}
+\label{ch:conclusion}
+
+\section{Summary of Achievements}
+
+The project delivers a complete, running data platform for the
+ride-hailing fleet use case: two simulated ingestion paths, a Kafka
+topic partitioned for correctness, an immutable Parquet master dataset,
+a Spark Structured Streaming speed layer with stateful idle alerting, a
+nine-task Airflow reconciliation over PySpark, a PostgreSQL serving store
+holding both layers' views, a FastAPI surface of eleven endpoints, a
+consolidated daily profitability report, two Grafana dashboards, and ten
+Prometheus alert rules routed through Alertmanager. It starts from a
+fresh clone with one command on a 16\,GB laptop, and 202 automated tests
+plus a 28-check end-to-end smoke test pass against it.
+
+\section{Key Findings}
+
+The business question posed by the brief contains two sub-questions with
+incompatible latency, accuracy and recomputability requirements. A Lambda
+architecture is justified here not by convention but by a specific
+property Kappa cannot supply economically: \textbf{restating a past day's
+financial figures when a correction arrives on a different channel, days
+later.}
+
+The project demonstrates that property directly. A corrected file
+triggers an idempotent recompute producing the same 50 rows with updated
+values, and a forced replay reproduces bit-identical figures. It also
+\emph{quantifies} the cost of the speed layer's approximation rather than
+asserting it, measuring one dropped revenue-bearing event on one day of
+four and explaining, arithmetically, why that is the expected magnitude.
+We regard the decision to report a measured drift of \code{0.000000} on
+three days, with the arithmetic that predicts it, as a stronger result
+than a larger number obtained by quietly raising the injected fault rate
+would have been.
+
+Lambda's principal weakness --- divergent codebases --- is mitigated
+structurally by a shared \code{common/} package, with the two
+performance-motivated duplications pinned together by tests that feed
+identical inputs through both implementations. This is the part of the
+design we would defend most strongly to a reader who arrived persuaded by
+the Kappa critique.
+
+\section{Limitations}
+
+The limitations are set out in full in Section~\ref{sec:limitations}. The
+three that most constrain the conclusions are that batch Spark runs in
+local mode, so distributed batch is designed for but not demonstrated;
+that the drift figures are small integer counts from a single run, so
+four days is not a sample from which to generalise a rate; and that the
+simulated clock's derivation from wall-clock time makes operational
+downtime indistinguishable from low demand in the resulting data.
+
+\section{Recommendations and Future Work}
+
+In priority order, and independent of scale:
+
+\begin{enumerate}
+  \item \textbf{Decouple the archiver from the speed layer} onto
+        separate workers. They already have separate checkpoints; sharing
+        cores is what turned a worker restart into 26 minutes of lost
+        archiving.
+  \item \textbf{Add a schema registry} in front of the telemetry topic,
+        so an incompatible producer is rejected at publish time rather
+        than discovered in the dead-letter queue, and give the DLQ an
+        automated replay path.
+  \item \textbf{Adopt a lake table format} (Iceberg or Delta Lake) to
+        give the curated lake writes the same atomicity that
+        delete-then-insert already gives the PostgreSQL views.
+  \item \textbf{Annotate outage windows} on the simulated timeline, so
+        the \code{becoming\_unprofitable} trend rule can exclude days
+        degraded by pipeline downtime instead of reading them as a
+        commercial decline.
+  \item \textbf{Express alert thresholds as ratios} rather than absolute
+        counts, so that \code{IdleVehiclesHigh} survives a change in
+        fleet size.
+\end{enumerate}
+
+\section{Lessons Learned}
+
+The most valuable outcome was not the architecture but what operating it
+revealed: a green healthcheck over a dead archiver, a correct pipeline
+producing economically meaningless output, and an interval that was
+60$\times$ longer than intended because it was expressed in the wrong
+clock. None of the three was visible in code review. Each was found by
+running the system and checking the numbers against expectations, which
+is the habit this project is ultimately arguing for --- and the same
+habit that produced its central result, since the decision to measure why
+the drift was zero, rather than to assume the measurement was broken, is
+what turned an anticlimax into the report's strongest section.

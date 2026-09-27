@@ -1,0 +1,225 @@
+%====================================================================
+% References for the EC8203 mini-project report.
+%
+% Two groups: the architecture literature we actually argue with
+% (Chapter 2), and the primary documentation for each component of the
+% stack, cited where the report makes a claim about that component's
+% behaviour rather than about our own code.
+%====================================================================
+
+%--------------------------------------------------------------------
+% Architecture: Lambda, Kappa and the critique
+%--------------------------------------------------------------------
+@book{marz2015bigdata,
+  author    = {Nathan Marz and James Warren},
+  title     = {Big Data: Principles and Best Practices of Scalable
+               Real-Time Data Systems},
+  publisher = {Manning Publications},
+  address   = {Shelter Island, NY},
+  year      = {2015}
+}
+
+@misc{kreps2014questioning,
+  author       = {Jay Kreps},
+  title        = {Questioning the Lambda Architecture},
+  howpublished = {O'Reilly Radar},
+  year         = {2014},
+  note         = {\url{https://www.oreilly.com/radar/questioning-the-lambda-architecture/}.
+                  Accessed 2026-09-27}
+}
+
+@book{kleppmann2017ddia,
+  author    = {Martin Kleppmann},
+  title     = {Designing Data-Intensive Applications: The Big Ideas Behind
+               Reliable, Scalable, and Maintainable Systems},
+  publisher = {O'Reilly Media},
+  address   = {Sebastopol, CA},
+  year      = {2017}
+}
+
+@inproceedings{helland2015immutability,
+  author    = {Pat Helland},
+  title     = {Immutability Changes Everything},
+  booktitle = {Proceedings of the 7th Biennial Conference on Innovative
+               Data Systems Research (CIDR)},
+  year      = {2015}
+}
+
+%--------------------------------------------------------------------
+% Stream processing: semantics, event time, state
+%--------------------------------------------------------------------
+@article{akidau2015dataflow,
+  author    = {Tyler Akidau and Robert Bradshaw and Craig Chambers and
+               Slava Chernyak and Rafael J. Fern{\'a}ndez-Moctezuma and
+               Reuven Lax and Sam McVeety and Daniel Mills and
+               Frances Perry and Eric Schmidt and Sam Whittle},
+  title     = {The Dataflow Model: A Practical Approach to Balancing
+               Correctness, Latency, and Cost in Massive-Scale, Unbounded,
+               Out-of-Order Data Processing},
+  journal   = {Proceedings of the VLDB Endowment},
+  volume    = {8},
+  number    = {12},
+  year      = {2015}
+}
+
+@article{akidau2013millwheel,
+  author    = {Tyler Akidau and Alex Balikov and Kaya Bekiro{\u{g}}lu and
+               Slava Chernyak and Josh Haberman and Reuven Lax and
+               Sam McVeety and Daniel Mills and Paul Nordstrom and
+               Sam Whittle},
+  title     = {{MillWheel}: Fault-Tolerant Stream Processing at Internet Scale},
+  journal   = {Proceedings of the VLDB Endowment},
+  volume    = {6},
+  number    = {11},
+  year      = {2013}
+}
+
+@inproceedings{armbrust2018structured,
+  author    = {Michael Armbrust and Tathagata Das and Joseph Torres and
+               Burak Yavuz and Shixiong Zhu and Reynold Xin and
+               Ali Ghodsi and Ion Stoica and Matei Zaharia},
+  title     = {Structured Streaming: A Declarative {API} for Real-Time
+               Applications in {Apache Spark}},
+  booktitle = {Proceedings of the 2018 International Conference on
+               Management of Data (SIGMOD)},
+  year      = {2018}
+}
+
+@inproceedings{zaharia2013dstreams,
+  author    = {Matei Zaharia and Tathagata Das and Haoyuan Li and
+               Timothy Hunter and Scott Shenker and Ion Stoica},
+  title     = {Discretized Streams: Fault-Tolerant Streaming Computation
+               at Scale},
+  booktitle = {Proceedings of the 24th ACM Symposium on Operating Systems
+               Principles (SOSP)},
+  year      = {2013}
+}
+
+@inproceedings{zaharia2012rdd,
+  author    = {Matei Zaharia and Mosharaf Chowdhury and Tathagata Das and
+               Ankur Dave and Justin Ma and Murphy McCauley and
+               Michael J. Franklin and Scott Shenker and Ion Stoica},
+  title     = {Resilient Distributed Datasets: A Fault-Tolerant Abstraction
+               for In-Memory Cluster Computing},
+  booktitle = {Proceedings of the 9th USENIX Symposium on Networked Systems
+               Design and Implementation (NSDI)},
+  year      = {2012}
+}
+
+@article{carbone2015flink,
+  author  = {Paris Carbone and Asterios Katsifodimos and Stephan Ewen and
+             Volker Markl and Seif Haridi and Kostas Tzoumas},
+  title   = {{Apache Flink}: Stream and Batch Processing in a Single Engine},
+  journal = {IEEE Data Engineering Bulletin},
+  volume  = {38},
+  number  = {4},
+  year    = {2015}
+}
+
+%--------------------------------------------------------------------
+% Ingestion
+%--------------------------------------------------------------------
+@inproceedings{kreps2011kafka,
+  author    = {Jay Kreps and Neha Narkhede and Jun Rao},
+  title     = {{Kafka}: A Distributed Messaging System for Log Processing},
+  booktitle = {Proceedings of the 6th International Workshop on Networking
+               Meets Databases (NetDB)},
+  year      = {2011}
+}
+
+@misc{kafka_docs,
+  author       = {{Apache Software Foundation}},
+  title        = {{Apache Kafka} Documentation},
+  howpublished = {\url{https://kafka.apache.org/documentation/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+%--------------------------------------------------------------------
+% Processing and orchestration
+%--------------------------------------------------------------------
+@misc{spark_ss_guide,
+  author       = {{Apache Software Foundation}},
+  title        = {Structured Streaming Programming Guide,
+                  {Apache Spark} 3.5.3},
+  howpublished = {\url{https://spark.apache.org/docs/3.5.3/structured-streaming-programming-guide.html}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+@misc{airflow_docs,
+  author       = {{Apache Software Foundation}},
+  title        = {{Apache Airflow} Documentation, Version 2.10},
+  howpublished = {\url{https://airflow.apache.org/docs/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+@misc{parquet_docs,
+  author       = {{Apache Software Foundation}},
+  title        = {{Apache Parquet} File Format Specification},
+  howpublished = {\url{https://parquet.apache.org/docs/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+%--------------------------------------------------------------------
+% Storage and serving
+%--------------------------------------------------------------------
+@misc{postgres_docs,
+  author       = {{The PostgreSQL Global Development Group}},
+  title        = {{PostgreSQL} 16 Documentation},
+  howpublished = {\url{https://www.postgresql.org/docs/16/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+@misc{fastapi_docs,
+  author       = {Sebasti{\'a}n Ram{\'i}rez},
+  title        = {{FastAPI} Documentation},
+  howpublished = {\url{https://fastapi.tiangolo.com/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+%--------------------------------------------------------------------
+% Observability
+%--------------------------------------------------------------------
+@misc{prometheus_docs,
+  author       = {{Prometheus Authors}},
+  title        = {{Prometheus} Documentation: Querying, Alerting Rules and
+                  the Pushgateway},
+  howpublished = {\url{https://prometheus.io/docs/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27. The Pushgateway guidance cited in
+                  Section 4.5 is from \emph{When To Use The Pushgateway}}
+}
+
+@misc{grafana_docs,
+  author       = {{Grafana Labs}},
+  title        = {{Grafana} Documentation},
+  howpublished = {\url{https://grafana.com/docs/grafana/latest/}},
+  year         = {2024},
+  note         = {Accessed 2026-09-27}
+}
+
+@book{beyer2016sre,
+  editor    = {Betsy Beyer and Chris Jones and Jennifer Petoff and
+               Niall Richard Murphy},
+  title     = {Site Reliability Engineering: How Google Runs Production
+               Systems},
+  publisher = {O'Reilly Media},
+  address   = {Sebastopol, CA},
+  year      = {2016}
+}
+
+%--------------------------------------------------------------------
+% Assessment brief
+%--------------------------------------------------------------------
+@misc{ec8203brief,
+  author       = {{Department of Electrical and Information Engineering}},
+  title        = {{EC8203} Applied Big Data Engineering: Data Engineering
+                  Mini-Project Assessment},
+  howpublished = {Faculty of Engineering, University of Ruhuna},
+  year         = {2026}
+}

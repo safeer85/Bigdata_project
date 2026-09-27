@@ -13,7 +13,7 @@ COMPOSE := docker compose
 CORE := postgres kafka spark-master spark-worker api prometheus grafana
 
 .PHONY: help up up-tools down reset logs ps test smoke demo-idle demo-outage \
-        demo-resubmit demo-late-file build wait clean-pyc lint urls
+        demo-resubmit demo-late-file build wait clean-pyc lint urls report
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -94,6 +94,9 @@ demo-resubmit: ## Drop a corrected v2 expense file for a past day -> batch recom
 
 demo-late-file: ## Delay the next expense file past its SLA -> ExpenseFileLate alert
 	python scripts/demo.py late-file
+
+report: ## Rebuild docs/report.pdf from the LaTeX source (needs pdflatex)
+	python scripts/build_report_pdf.py
 
 clean-pyc:
 	@find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true

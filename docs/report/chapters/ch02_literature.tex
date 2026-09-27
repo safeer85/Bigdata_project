@@ -1,0 +1,144 @@
+\chapter{Literature Review}
+\label{ch:literature}
+
+This chapter reviews the two architectures the brief asks us to choose
+between, and the stream-processing semantics that the choice depends on.
+We review them in order to \emph{use} them: every claim made here is
+called upon in Chapter~\ref{ch:architecture} or
+Chapter~\ref{ch:implementation}.
+
+\section{The Lambda Architecture}
+\label{sec:lit-lambda}
+
+Marz and Warren propose Lambda as an answer to a specific
+problem: how to compute arbitrary functions over arbitrary data at
+scale, when no single system can be simultaneously fast, exact and
+fault-tolerant~\cite{marz2015bigdata}. Their construction has three
+parts. An \emph{immutable master dataset} records raw facts and is never
+updated in place. A \emph{batch layer} recomputes views over the whole
+master dataset from scratch. A \emph{speed layer} computes incremental,
+approximate views over only the recent data the batch layer has not yet
+covered. A serving layer merges the two.
+
+Two properties of that construction matter for this project. First,
+\textbf{human fault tolerance}: because the master dataset is immutable
+and the batch views are a pure function of it, a bug in view computation
+is repaired by fixing the code and recomputing, not by attempting to
+correct derived state in place. Helland makes the more general version of
+this argument --- that immutability converts a class of distributed-state
+problems into append-only bookkeeping~\cite{helland2015immutability}.
+Second, the speed layer's error is explicitly \emph{temporary}: it covers
+only the window the batch layer has not yet recomputed, and is discarded
+when the batch view catches up.
+
+Kleppmann situates the same idea in a wider treatment of derived
+data, and makes the point this project leans on most heavily: the
+distinction between a system of record and a derived view is what makes
+recomputation safe, and losing that distinction is what makes data
+pipelines unmaintainable~\cite{kleppmann2017ddia}.
+
+\section{The Kappa Architecture and the Critique of Lambda}
+\label{sec:lit-kappa}
+
+Kreps's critique is the standard case against
+Lambda and deserves to be taken at full strength~\cite{kreps2014questioning}.
+His argument is not that Lambda is incorrect but that it is
+\emph{expensive in the wrong currency}. Maintaining two implementations
+of the same business logic --- one in a batch framework, one in a
+streaming framework --- doubles the code that must be written, tested and
+reasoned about, and, worse, produces two implementations that can
+silently disagree. Debugging then means debugging the divergence rather
+than either system.
+
+His proposed replacement, commonly called Kappa, removes the batch layer
+entirely. There is one processing path, a stream processor. Recomputation
+is achieved not by a separate batch job but by \emph{replaying the log}
+from a chosen offset into a new version of the job, and cutting over when
+it catches up. The log, not a file system, is the system of record.
+
+The critique is strong and largely correct as stated. It rests, however,
+on an assumption worth naming explicitly, because it is the assumption
+this project's use case violates: that \textbf{everything needed to
+recompute a result is in the log}. Where that holds, Kappa's replay is a
+complete recomputation story and Lambda's batch layer is redundant
+machinery. Section~\ref{sec:kappa-rejected} argues that it does not hold
+here, and that the failure is structural rather than a matter of tuning.
+
+\section{Event Time, Watermarks and Delivery Semantics}
+\label{sec:lit-semantics}
+
+The correctness argument in Chapter~\ref{ch:results} depends on three
+results from the stream-processing literature.
+
+\textbf{Event time versus processing time.} Akidau et al.\ formalise the
+distinction in the Dataflow model: an event's \emph{event time} is when
+it happened; its \emph{processing time} is when the system saw
+it~\cite{akidau2015dataflow}. The two diverge arbitrarily under network
+delay, retries and partition skew. Any aggregation that groups by
+processing time produces results that depend on infrastructure
+behaviour rather than on the world, which for a financial figure is
+disqualifying.
+
+\textbf{Watermarks are a bet, not a guarantee.} Because a system cannot
+know whether more data will arrive for a past window, it must decide when
+to stop waiting. A watermark is that decision: a heuristic assertion that
+no event older than some bound will now arrive. Dataflow and its
+predecessor MillWheel both make the same point --- the watermark trades
+completeness against latency, and events later than the watermark are
+\emph{dropped}, not deferred~\cite{akidau2015dataflow,akidau2013millwheel}.
+This is the mechanism we measure directly in
+Section~\ref{sec:consistency}: our watermark is deliberately set tighter
+than the injected lateness, so the loss is real and observable rather
+than hypothetical.
+
+\textbf{End-to-end exactly-once requires idempotent sinks.} Spark's
+Structured Streaming provides exactly-once semantics with respect to its
+own state and offsets, through checkpointing and write-ahead
+logging~\cite{armbrust2018structured}, building on the micro-batch
+fault-tolerance model of discretised
+streams~\cite{zaharia2013dstreams} and the lineage-based recovery of
+RDDs~\cite{zaharia2012rdd}. That guarantee stops at the sink boundary:
+an arbitrary external sink written from \code{foreachBatch} observes
+\emph{at-least-once} delivery, because a failure between writing and
+committing offsets causes the batch to be re-executed. Kleppmann's
+treatment is the clearest statement of the remedy --- make the write
+idempotent, typically by keying it, so a repeated delivery is
+indistinguishable from a single one~\cite{kleppmann2017ddia}. Every sink
+in this project does that, and Section~\ref{sec:impl-sinks} gives the
+keys.
+
+\section{The Tooling Landscape}
+\label{sec:lit-tooling}
+
+Kafka's original design paper sets out the properties we rely on: a
+partitioned, replicated, append-only commit log, with ordering guaranteed
+\emph{within} a partition and not across
+them~\cite{kreps2011kafka,kafka_docs}. That single sentence is the reason
+partitioning is a correctness decision in this project rather than a
+throughput one (Section~\ref{sec:impl-partitioning}).
+
+For stream processing, the principal alternative to Spark Structured
+Streaming is Apache Flink, whose design treats streaming as primary and
+batch as a bounded special case, with a stronger state
+model~\cite{carbone2015flink}. We acknowledge in
+Section~\ref{sec:tech-stack} that Flink is arguably the better stream
+processor considered in isolation, and explain why an engine that also
+runs our batch layer wins on a criterion Flink cannot help with.
+
+\section{Positioning of This Work}
+\label{sec:lit-gap}
+
+The literature gives a clear decision rule that is, in practice, rarely
+applied: choose Lambda when recomputation cannot be expressed as a log
+replay, and choose Kappa when it can. Most published comparisons instead
+weigh operational simplicity against latency, which is a tie the
+fashionable option usually wins.
+
+This project contributes a worked case where the rule bites. The
+correcting event --- a partner's revised expense file --- arrives on a
+separate channel, in a different format, days after the telemetry it
+restates. It is not late data in the watermark sense; it is not in the
+log at all. Furthermore, where most treatments assert that the speed
+layer is approximate, we \emph{measure} the approximation on a system
+configured so that the two layers must disagree, and report the result
+including the days on which the disagreement was zero.

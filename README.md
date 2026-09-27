@@ -234,17 +234,20 @@ db/init/         PostgreSQL schema, indexes and views
 observability/   prometheus/ (config + 10 alert rules), alertmanager/, grafana/
 scripts/         simclock_init, create_topics, wait_for_stack, demo, smoke_test
 tests/           202 tests: unit, PySpark, API
-docs/            SPEC.md, report.md, decisions.md, runbook.md, walkthrough.md,
-                 report-assets/
+docs/            SPEC.md, decisions.md, contributions.md, runbook.md,
+                 walkthrough.md, report-assets/
+docs/report/     LaTeX source for the submitted report (DEIE template):
+                 report.tex, chapters/, bibliography.bib, figures/
 ```
 
 ### Which document to read for what
 
 | Document | Purpose |
 |---|---|
-| [`docs/report.pdf`](docs/report.pdf) | **The submitted report (PDF, 13 pages).** Rebuild with `python scripts/build_report_pdf.py`. |
+| [`docs/report.pdf`](docs/report.pdf) | **The submitted report (PDF).** Seven chapters, five appendices, following the DEIE report template. Rebuild with `make report`. |
+| [`docs/report/`](docs/report/) | **LaTeX source** for the above — `report.tex`, `chapters/`, `bibliography.bib`. This is the single source of truth for the report; there is no Markdown copy to drift from it. |
 | [`docs/demo-script.md`](docs/demo-script.md) | **Shot-by-shot script for recording the 7-minute demo video**, including how to hide the pipeline's real waits. |
-| [`docs/report.md`](docs/report.md) | **The written report.** The architecture argument and the measured evidence, structured against the marking criteria. |
+| [`docs/contributions.md`](docs/contributions.md) | **Statement of individual contributions** — who owned what, and the decisions each member defends. Summarised in report Appendix E. |
 | [`docs/decisions.md`](docs/decisions.md) | Every non-trivial choice, alternatives considered, and the six defects found by running it. |
 | [`docs/walkthrough.md`](docs/walkthrough.md) | Module-by-module explanation in plain English, for viva preparation. |
 | [`docs/runbook.md`](docs/runbook.md) | One entry per alert: what it means, how to reproduce, how to fix. |

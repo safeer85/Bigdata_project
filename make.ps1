@@ -81,7 +81,7 @@ function Show-Urls {
 switch ($Target) {
     "help" {
         Write-Host "targets: up up-tools down reset build wait ps logs test smoke urls"
-        Write-Host "         demo-idle demo-outage demo-resubmit demo-late-file"
+        Write-Host "         demo-idle demo-outage demo-resubmit demo-late-file report"
     }
     "build"   { Ensure-Env; docker compose build; Assert-LastExitCode "docker compose build" }
     "up"      {
@@ -129,5 +129,6 @@ switch ($Target) {
     "demo-outage"    { python scripts/demo.py outage }
     "demo-resubmit"  { python scripts/demo.py resubmit }
     "demo-late-file" { python scripts/demo.py late-file }
+    "report"         { python scripts/build_report_pdf.py; Assert-LastExitCode "the report build" }
     default { Write-Error "unknown target '$Target'"; exit 1 }
 }

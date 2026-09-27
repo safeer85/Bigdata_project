@@ -171,7 +171,8 @@
   <text x="670" y="632" font-size="11.5" fill="#475569">fares, profitability flags) - the mitigation</text>
   <text x="670" y="648" font-size="11.5" fill="#475569">for Lambda's two-codebase problem.</text>
 
-  <text x="20" y="652" font-size="11" fill="#94a3b8">
-    Figure 1 - System architecture. Simulated clock: 1 real second = 1 simulated minute (1 simulated day = 24 real minutes).
-  </text>
+  <!-- No caption text baked in here: the report supplies the caption via
+       \caption{}, which is what puts the figure in the List of Figures. A
+       second caption inside the drawing would print twice. The simulated
+       clock this diagram assumes is stated in report section 3.5. -->
 </svg>

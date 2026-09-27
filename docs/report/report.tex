@@ -1,0 +1,404 @@
+%====================================================================
+% EC8203 Applied Big Data Engineering -- Mini-Project Report
+% Fleet Operations: A Lambda-Architecture Data Pipeline
+% Department of Electrical and Information Engineering,
+% Faculty of Engineering, University of Ruhuna
+%
+% Build:  make report
+%    or:  pdflatex report && bibtex report && pdflatex report && pdflatex report
+%
+% Page geometry, header/footer and front-matter order follow the DEIE
+% report template (pagesetup.cfg). Do not change them to fit content --
+% shorten the content instead.
+%====================================================================
+\documentclass[a4paper,12pt]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{multicol}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+
+% A stretchy right-aligned column. tabularx needs at least one X column to
+% have something to stretch; an all-fixed table silently overruns the margin
+% instead of wrapping, which is how the four-day results table ended up two
+% inches wide of the text block.
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+
+%--------------------------------------------------------------------
+% Density. This report is a mini-project bound by a 8-15 page guideline
+% on the body, and it carries 20 tables in that space. These values
+% tighten the gaps around lists, tables and floats without touching
+% line spacing, font size or margins, all of which the DEIE template
+% fixes and none of which may be altered.
+%--------------------------------------------------------------------
+\usepackage{enumitem}
+\setlist{topsep=2pt, itemsep=1pt, parsep=0pt, partopsep=0pt}
+\setlist[description]{topsep=3pt, itemsep=2pt}
+
+\renewcommand{\arraystretch}{0.95}
+\setlength{\tabcolsep}{4pt}
+
+% Tables already set \small in their own source; this takes them one
+% size further without editing each environment, and re-points \small
+% inside a table so those local declarations do not undo it.
+\usepackage{etoolbox}
+\AtBeginEnvironment{table}{\footnotesize\let\small\footnotesize}
+\AtBeginEnvironment{longtable}{\footnotesize\let\small\footnotesize}
+
+% tocloft is loaded before hyperref, which is the order those two require.
+\usepackage{tocloft}
+\setlength{\cftbeforechapskip}{2pt}
+\setlength{\cftbeforesecskip}{0pt}
+\setlength{\cftbeforesubsecskip}{0pt}
+\setlength{\cftbeforefigskip}{0pt}
+\setlength{\cftbeforetabskip}{0pt}
+\renewcommand{\cftchapfont}{\bfseries}
+\renewcommand{\cftchappagefont}{\bfseries}
+
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{0pt}
+
+% Let a float share a page with less text around it, rather than being
+% deferred and leaving part-empty pages behind it.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.8}
+
+% A chapter opening drops ~2 in of white space in report.cls.
+\usepackage{titlesec}
+\titlespacing*{\chapter}{0pt}{-20pt}{18pt}
+\titlespacing*{\section}{0pt}{2.2ex plus 0.6ex minus 0.2ex}{1.2ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.8ex plus 0.5ex minus 0.2ex}{0.8ex plus 0.2ex}
+
+%--------------------------------------------------------------------
+% Page set-up (values from the DEIE report template, pagesetup.cfg)
+%--------------------------------------------------------------------
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\evensidemargin}{0.25in}
+\setlength{\topmargin}{-0.5in}
+\setlength{\headheight}{22.5pt}
+\setlength{\headsep}{0.25in}
+\setlength{\topskip}{0cm}
+\setlength{\textwidth}{6in}
+\setlength{\textheight}{9.7in}
+\setlength{\footskip}{0.75in}
+
+% Extra inter-word stretch, so the many unbreakable \texttt identifiers
+% (metric names, table names) do not overflow the margin.
+\setlength{\emergencystretch}{3em}
+\raggedbottom
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\footnotesize\leftmark}
+\cfoot{Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+%--------------------------------------------------------------------
+% Bibliography
+%--------------------------------------------------------------------
+\usepackage[numbers,sort&compress]{natbib}
+% report.cls titles the bibliography "Bibliography", which would disagree with
+% the "References" line this document adds to the contents list.
+\renewcommand{\bibname}{References}
+\usepackage[breaklinks]{hyperref}
+\hypersetup{colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue}
+\usepackage{url}
+\def\UrlBreaks{\do\/\do\-\do\_}
+
+%--------------------------------------------------------------------
+% Code listing style
+%--------------------------------------------------------------------
+\definecolor{codegray}{gray}{0.95}
+\definecolor{codekw}{rgb}{0.0,0.2,0.6}
+\definecolor{codestr}{rgb}{0.55,0.10,0.10}
+\definecolor{codecom}{rgb}{0.25,0.50,0.25}
+\lstset{
+  backgroundcolor=\color{codegray},
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{codekw}\bfseries,
+  stringstyle=\color{codestr},
+  commentstyle=\color{codecom}\itshape,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  framerule=0.3pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+  xleftmargin=10pt,
+  language=Python
+}
+
+%--------------------------------------------------------------------
+% Shorthands. \code is used for every identifier, table, metric and
+% file path in the report; it takes a verbatim-ish argument so the
+% underscores in metric names do not need escaping at each use.
+%--------------------------------------------------------------------
+% Identifiers such as test_spark_validation_matches_the_python_rules are a
+% single unbreakable word to TeX, and in a narrow tabularx column they run
+% two inches past the margin. Redefining \_ inside \code to carry an
+% \allowbreak gives TeX a legal break after every underscore. No hyphen is
+% inserted, which matters: a hyphen would read as part of the identifier.
+\newcommand{\code}[1]{{\def\_{\textunderscore\allowbreak}\texttt{\small #1}}}
+
+\begin{document}
+
+%====================================================================
+% COVER PAGE
+%====================================================================
+\thispagestyle{empty}
+\begin{center}
+
+\includegraphics[width=2cm,keepaspectratio=true]{uor_logo.jpg}
+
+\vspace{0.8cm}
+\begin{huge}
+\textbf{Fleet Operations:}\\[0.3cm]
+\textbf{A Lambda-Architecture Data Pipeline}\\
+\textbf{for Ride-Hailing Utilisation}\\
+\textbf{and Daily Profitability}
+\end{huge}\\[0.5cm]
+
+\begin{large}
+\emph{answering a live question and a financial question
+from one immutable master dataset}
+\end{large}\\[0.9cm]
+
+\begin{normalsize}
+A mini-project report submitted to the
+\end{normalsize}\\[0.5cm]
+
+\begin{large}
+Department of Electrical and Information Engineering\\
+Faculty of Engineering\\
+University of Ruhuna\\
+Sri Lanka
+\end{large}\\[0.7cm]
+
+\begin{normalsize}in partial fulfilment of the requirements of\end{normalsize}\\[0.5cm]
+
+\begin{large}\textbf{EC8203 --- Applied Big Data Engineering}\end{large}\\[0.7cm]
+
+\begin{normalsize}by\end{normalsize}\\[0.4cm]
+
+\begin{tabular}[h]{lll}
+Ahamed N.F.F. & - & EG/2021/4390\\
+Safeer S.M.   & - & EG/2021/4771\\
+Nafla M.N.P.  & - & EG/2021/4687\\
+\end{tabular}\\[1.2cm]
+
+\begin{normalsize}
+Use Case 1: Ride-Hailing Fleet Operations\\
+Academic Year 2026 \quad\textbar\quad Mini-Project Report
+\end{normalsize}
+
+\end{center}
+
+\clearpage
+
+%====================================================================
+% ABSTRACT
+%====================================================================
+\renewcommand{\thepage}{\roman{page}}
+\setcounter{page}{1}
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+A ride-hailing operator needs two answers that do not fit the same
+processing model. A dispatcher needs to know which vehicles are idle and
+which zones are earning \emph{now}, within seconds, and does not mind if
+one trip is missing. Finance needs to know which vehicles are becoming
+unprofitable once fuel and maintenance costs are applied, and that figure
+must be exact, complete, and restatable when a fuel partner resubmits a
+corrected file days later. This report presents a data platform that
+answers both from one immutable master dataset, and defends the
+architecture that makes doing so possible.
+
+We implement a \textbf{Lambda architecture} and reject Kappa explicitly.
+The decisive argument is not latency but \emph{recomputation cost}: the
+correction that forces a restatement does not arrive in the event stream
+at all. It arrives on a separate channel, as a daily CSV drop, long after
+the telemetry it relates to, so replaying the log --- Kappa's entire
+recomputation story --- does not address the actual source of
+restatement. A date-partitioned Parquet lake lets the batch layer read
+exactly the one partition it needs, reconciling a full simulated day in
+9.4 seconds, where Kappa would require Kafka retention measured in months
+to offer the same guarantee.
+
+Lambda's best-known weakness is two codebases that drift. Our mitigation
+is structural: a shared \code{common/} package holds the simulated clock,
+zone mapping, validation, haversine distance, fare maths and all seven
+profitability flags, and is imported by the simulators, the speed layer,
+the batch layer and the serving API. Two duplications exist deliberately,
+both to avoid a per-row Python UDF, and each is pinned to its Python
+counterpart by a test that feeds identical inputs through both
+implementations.
+
+The system ingests a Kafka telemetry stream from a 50-vehicle simulated
+fleet and a daily expense file from fuel and garage partners, on a
+compressed clock where one real second is one simulated minute. Spark
+Structured Streaming archives the raw stream and computes live views;
+Airflow orchestrates a nine-task PySpark reconciliation per simulated
+day; PostgreSQL serves both layers side by side behind a FastAPI surface
+that labels every figure \code{source: speed} or \code{source: batch} and
+never blends them.
+
+The central evidence is quantitative and, deliberately, unflattering. The
+speed layer runs a 10-simulated-minute watermark against injected
+lateness of up to 20 minutes, so the two layers are \emph{designed} to
+disagree. Over four reconciled days the revenue drift was
+0.000000, 0.003384, 0.000000 and 0.000000. The one non-zero day is
+attributable to a single late \code{trip\_end} event dropped by the
+watermark and recovered by the batch layer
+(\code{speed\_trips} 316 against \code{batch\_trips} 317). We then
+measured \emph{why} the drift is usually zero --- 15 rows dropped per day,
+of which 3.4\% are revenue-bearing, giving an expectation of about half
+an event per day --- and report that arithmetic rather than inflating the
+fault rates to manufacture a larger number. Recomputation is demonstrated
+directly: a corrected \code{v2} expense file reproduced the same 50 rows
+with different values, and a forced replay returned bit-identical
+figures.
+
+Observability spans all five pipeline stages: structured JSON logs
+carrying both wall-clock and simulated time, Prometheus metrics for
+arrival, progress and correctness, and ten alert rules of which five have
+been verified firing \emph{and delivered} end to end, with a sixth
+deliberately suppressed by an inhibition rule. 202 automated tests pass,
+and a 28-check smoke test passes against the live stack from a fresh
+clone.
+
+Six defects found by operating the system --- not by reading the code ---
+are reported in full, including a green healthcheck on an archiver that
+had silently stopped writing for 26 minutes, and an interval expressed in
+real seconds that was 60 times longer than intended in business terms.
+
+\clearpage
+
+%====================================================================
+% ACKNOWLEDGEMENTS
+%====================================================================
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+
+We thank the staff of the Department of Electrical and Information
+Engineering, University of Ruhuna, for the module and the environment in
+which a project of this scope could be attempted inside two weeks, and
+the lecturer in charge of EC8203 for a brief that was specific enough to
+argue with --- the tension between its two sub-questions is what made the
+architecture decision worth making rather than merely worth stating.
+
+This system is assembled almost entirely from open-source work. We thank
+the maintainers of Apache Kafka, Apache Spark, Apache Airflow,
+PostgreSQL, FastAPI, Prometheus, Alertmanager, Grafana and Docker. We
+also thank the authors whose published arguments about Lambda and Kappa
+we engage with in Chapter~\ref{ch:literature}; disagreeing with a
+well-made case is a far better way to learn an architecture than
+accepting one.
+
+\clearpage
+
+%====================================================================
+% CONTENTS, FIGURES, TABLES
+%====================================================================
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{2}
+{\small
+\tableofcontents
+\addcontentsline{toc}{chapter}{Contents}
+\clearpage
+
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+\clearpage
+}
+
+%====================================================================
+% ACRONYMS
+%====================================================================
+\chapter*{Acronyms}
+\addcontentsline{toc}{chapter}{Acronyms}
+
+\begin{multicols}{2}
+\footnotesize
+\noindent
+\begin{tabular}{@{}lcl@{}}
+API   & - & Application Programming Interface\\
+CSV   & - & Comma-Separated Values\\
+CU    & - & Currency Unit (simulated)\\
+DAG   & - & Directed Acyclic Graph\\
+DLQ   & - & Dead-Letter Queue\\
+DQ    & - & Data Quality\\
+ETL   & - & Extract, Transform, Load\\
+GPS   & - & Global Positioning System\\
+HTTP  & - & Hypertext Transfer Protocol\\
+JSON  & - & JavaScript Object Notation\\
+JVM   & - & Java Virtual Machine\\
+KRaft & - & Kafka Raft (metadata mode)\\
+\end{tabular}
+
+\noindent
+\begin{tabular}{@{}lcl@{}}
+RF    & - & Replication Factor\\
+RPC   & - & Remote Procedure Call\\
+SLA   & - & Service-Level Agreement\\
+SLO   & - & Service-Level Objective\\
+SQL   & - & Structured Query Language\\
+SVG   & - & Scalable Vector Graphics\\
+UDF   & - & User-Defined Function\\
+UUID  & - & Universally Unique Identifier\\
+YAML  & - & YAML Ain't Markup Language\\
+ZK    & - & ZooKeeper\\
+\end{tabular}
+\end{multicols}
+
+\clearpage
+
+%====================================================================
+%                       MAIN MATTER
+%====================================================================
+\renewcommand{\thepage}{\arabic{page}}
+\setcounter{page}{1}
+
+\input{chapters/ch01_introduction}
+\input{chapters/ch02_literature}
+\input{chapters/ch03_architecture}
+\input{chapters/ch04_implementation}
+\input{chapters/ch05_results}
+\input{chapters/ch06_discussion}
+\input{chapters/ch07_conclusion}
+
+%====================================================================
+% BIBLIOGRAPHY
+%====================================================================
+\clearpage
+\bibliographystyle{ieeetr}
+\bibliography{bibliography}
+\addcontentsline{toc}{chapter}{References}
+
+%====================================================================
+% APPENDICES
+%====================================================================
+\appendix
+{\small
+\input{chapters/appendices}
+}
+
+\end{document}
