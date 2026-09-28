@@ -1,0 +1,51 @@
+\chapter{Conclusions and Recommendations}
+\label{ch:conclusion}
+
+The brief's business question is really two questions, and their latency,
+accuracy and recomputability requirements do not fit together. What
+justifies Lambda here is not convention but one property Kappa cannot
+supply cheaply: \textbf{restating a past day's financial figures when a
+correction arrives on a different channel, days later.} We showed that
+property working. A corrected file triggers an idempotent recompute
+producing the same 50 rows with updated values, and a forced replay
+returns bit-identical figures.
+
+We also put a number on the speed layer's approximation instead of
+asserting one, then explained arithmetically why it is as small as it is.
+A measured drift of \code{0.000000} on three days of four, reported next
+to the arithmetic that predicts it, beats a bigger number obtained by
+quietly raising the fault rate. Lambda's usual weakness, two codebases
+drifting apart, we answered with the shared \code{common/} package and
+tests that hold its two duplications in step. For a reader who arrives
+persuaded by Kreps, that is the part we would defend hardest.
+
+\section*{Recommendations}
+
+In priority order, and independent of scale:
+
+\begin{enumerate}
+  \item \textbf{Decouple the archiver from the speed layer} onto separate
+        workers. They already have separate checkpoints; sharing cores is
+        what turned a worker restart into 26 minutes of lost archiving.
+  \item \textbf{Add a schema registry} in front of the telemetry topic,
+        so a bad producer is rejected at publish time instead of
+        discovered in the dead-letter queue, and give the DLQ an
+        automated replay path.
+  \item \textbf{Adopt a lake table format} (Iceberg or Delta Lake), to
+        give lake writes the atomicity delete-then-insert already gives
+        the PostgreSQL views.
+  \item \textbf{Annotate outage windows}, so the
+        \code{becoming\_unprofitable} rule can exclude degraded days
+        instead of reading them as a commercial decline.
+  \item \textbf{Express alert thresholds as ratios}, so that
+        \code{IdleVehiclesHigh} survives a change in fleet size.
+\end{enumerate}
+
+% Two extra lines here keep the closing paragraph on the same page and the
+% body inside the brief's 15-page guideline. The document is already
+% \raggedbottom, so pages end at varying heights anyway.
+\enlargethispage{2\baselineskip}
+The most valuable thing we got out of this was not the architecture. It
+was what running it turned up: a green healthcheck over a dead archiver,
+a correct pipeline producing meaningless economics, an interval
+60$\times$ longer than we intended. None of it visible in code review.

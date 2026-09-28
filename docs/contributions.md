@@ -34,7 +34,7 @@ technical decisions each member is responsible for defending in the viva.
   than a counter, so every service agrees on `sim_time` without coordinating.
 - **Faults are injected deliberately**, at roughly 0.5% malformed, 0.5% duplicate, 1% missing
   field and 2% late events. The 2% late rate is what makes the speed-vs-batch drift in report
-  §6 measurable rather than theoretical.
+  report §4.1 measurable rather than theoretical.
 - **The expense file SLA applies to the first delivery, not to corrections.** A corrected `v2`
   file arriving days later is normal partner behaviour, not a late-file incident — this was
   fixed after an early version raised false alerts on every resubmission.
@@ -132,7 +132,7 @@ layer depends on them.
 - `scripts/smoke_test.py`, `scripts/wait_for_stack.py` — each member contributed the checks for
   their own layer.
 - `docs/report/` — each member drafted the chapters covering their area; the architecture
-  argument (Ch. 3), the consistency analysis (§5.2) and the conclusion were written jointly.
+  argument (Ch. 2), the consistency analysis (§4.1) and the conclusion were written jointly.
 - Acceptance runs — the fresh-clone run, the multi-day reconciliation and the alert-firing
   verification were done together, because each needs all three layers alive at once.
 

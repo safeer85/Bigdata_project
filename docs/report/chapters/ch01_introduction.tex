@@ -1,51 +1,41 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-A ride-hailing operator runs two businesses at once. One is an
-operations business, conducted minute by minute: where are the cars, how
-many are earning, which zones are hot, which driver has been sitting
-still for an hour. The other is a financial business, conducted a day at
-a time: what did each vehicle earn, what did it cost to run, and is it
-still worth keeping on the road. This project builds a single data
-platform that answers both, and argues that the interesting engineering
-decision is not how to answer either one but how to answer both without
-letting the fast answer contaminate the exact one.
+A ride-hailing operator runs two businesses at once. One is an operations
+business, conducted minute by minute: where are the cars, how many are
+earning, which driver has been sitting still for an hour. The other is a
+financial business, conducted a day at a time: what did each vehicle
+earn, what did it cost to run, and is it still worth keeping on the road.
+This project builds one platform that answers both, and argues that the
+interesting decision is not how to answer either but how to answer both
+without letting the fast answer contaminate the exact one.
 
-\section{Background}
-\label{sec:background}
-
-The assessment brief~\cite{ec8203brief} specifies a use case with two
-ingestion paths of deliberately different character. A streaming source
-emits GPS and telemetry events per vehicle every few seconds:
-\code{trip\_id}, \code{driver\_id}, \code{vehicle\_id}, latitude,
-longitude, speed, status, fare and timestamp. A daily batch source drops
-one file per simulated day carrying vehicle expense records from garages
-and fuel partners: \code{vehicle\_id}, \code{fuel\_cost},
-\code{maintenance\_cost}, \code{distance\_covered} and
-\code{service\_flag}.
-
-These two paths differ in more than cadence. The telemetry stream is
-high-volume, continuous, owned by us, and tolerant of small losses. The
-expense file is low-volume, periodic, owned by a third party, and
-\emph{authoritative about money}. It can also be wrong, and be corrected:
-a fuel-card partner that mis-keys a reconciliation will resubmit a
-corrected file days later, and the figures we published in the meantime
-must be restated. That asymmetry, more than any latency requirement,
-drives the architecture in this report.
-
-\section{Problem Statement}
+\section{Background and Problem Statement}
 \label{sec:problem}
 
-The brief poses one business question:
+The brief~\cite{ec8203brief} specifies two ingestion paths that behave
+very differently. A streaming source emits GPS and telemetry events per
+vehicle every few seconds
+(\code{trip\_id}, \code{driver\_id}, \code{vehicle\_id}, latitude,
+longitude, speed, status, fare, timestamp). A daily batch source drops
+one file per simulated day carrying expense records from garages and fuel
+partners (\code{vehicle\_id}, \code{fuel\_cost},
+\code{maintenance\_cost}, \code{distance\_covered},
+\code{service\_flag}).
 
-\begin{quote}
-What is fleet utilisation and earnings by area and time of day right
-now, and which vehicles are becoming unprofitable once yesterday's fuel
-and maintenance costs are factored in?
-\end{quote}
+They differ in more than cadence. The telemetry stream is high-volume,
+continuous, owned by us, and tolerant of small losses. The expense file
+is low-volume, periodic, owned by a third party, and \emph{authoritative
+about money}. It can also be wrong and be corrected: a fuel-card partner
+that mis-keys a reconciliation resubmits days later, and the figures
+published in the meantime must be restated. That asymmetry, more than any
+latency requirement, drives everything that follows.
 
-Read carefully, that is two questions whose non-functional requirements
-are mutually incompatible, as Table~\ref{tab:two-questions} sets out.
+The brief poses what looks like one business question: \emph{what is
+fleet utilisation and earnings by area and time of day right now, and
+which vehicles are becoming unprofitable once yesterday's fuel and
+maintenance costs are factored in?} It is really two, and their
+requirements conflict, as Table~\ref{tab:two-questions} sets out.
 
 \begin{table}[htbp]
 \centering
@@ -57,9 +47,9 @@ requirements. No single processing model serves both well.}
 & \textbf{Live utilisation} & \textbf{Daily profitability}\\
 \midrule
 Latency required    & seconds & next morning is acceptable\\
-Accuracy required   & approximate is fine & exact --- it is money\\
+Accuracy required   & approximate is fine & exact; it is money\\
 Completeness        & best effort & must cover the whole day\\
-Recomputable?       & no need & \textbf{yes} --- partners resubmit
+Recomputable?       & no need & \textbf{yes}, because partners resubmit
                                 corrected files\\
 Consumer            & dispatcher watching a map & finance, making
                                 retire/keep decisions\\
@@ -70,95 +60,34 @@ Consumer            & dispatcher watching a map & finance, making
 A dispatcher deciding where to send a car needs an answer in seconds and
 does not care if one trip is missing. A finance analyst deciding whether
 to retire a vehicle needs a figure that is complete, exact and
-\emph{reproducible}, because the fuel-card partner can and does resubmit
-a corrected expense file days later. Serving both from one processing
-model means either making the dispatcher wait for exactness they do not
-need, or letting finance quote a number whose error is unbounded and
-unknown. The problem this project solves is how to provide both
-guarantees from one dataset while making it impossible for a consumer to
-confuse them.
+\emph{reproducible}. Serving both from one processing model means either
+making the dispatcher wait for exactness they do not need, or letting
+finance quote a number whose error is unbounded and unknown. The problem
+is to provide both guarantees from one dataset while making it impossible
+for a consumer to confuse them.
 
 \section{Objectives and Scope}
 \label{sec:objectives}
 
-\subsection*{Objectives}
+We set out to choose between Lambda and Kappa on the evidence of this use
+case, and to say exactly why the loser lost. Both ingestion paths are
+simulated Python sources that inject faults into their own output, so the
+error handling can be shown working instead of claimed. The processing
+does real work on the data: cleaning, zone enrichment, windowed
+aggregation, stateful alerting, and a join across the two sources.
+Results land in a queryable store behind a live dashboard and a
+consolidated daily report. Every stage is instrumented, and what is
+instrumented includes the pipeline's \emph{known imprecision}, not just
+its health. That last point turned out to be the most interesting part of
+the project, so we measured the imprecision rather than assuming a value
+for it.
 
-\begin{enumerate}
-  \item Choose between a Lambda and a Kappa architecture on the
-        evidence of this use case's latency, replay, cost and
-        consistency requirements, and defend the rejected alternative
-        specifically rather than dismissively.
-  \item Implement both ingestion paths as simulated Python sources: a
-        continuous Kafka producer and a once-per-simulated-day file
-        drop, with deliberate faults so that error handling can be
-        demonstrated rather than asserted.
-  \item Implement processing consistent with the declared architecture,
-        performing meaningful transformation --- cleaning, zone
-        enrichment, windowed aggregation, stateful alerting, and a join
-        between the two sources --- not pass-through.
-  \item Land results in a queryable store and serve a consolidated
-        daily report and a live dashboard that answer the business
-        question.
-  \item Instrument every stage with structured logging, metrics and
-        alerting, so the pipeline's health and its \emph{known
-        imprecision} are both observable.
-  \item Quantify the cost of the architecture's approximation rather
-        than assuming it, and report the measurement honestly whichever
-        way it falls.
-\end{enumerate}
-
-\subsection*{Scope and simplifications}
-
-The system runs on a single 16\,GB laptop from one command
-(\code{make up}) and is demonstrable inside a lab session. Three
-simplifications follow from that, and each is stated where it matters
-rather than buried: simulated time is compressed 60-fold, so one real
-second is one simulated minute and a simulated day takes 24 real
-minutes; Kafka runs as a single broker with replication factor~1; and
-batch Spark runs in local mode, so the project demonstrates distributed
-\emph{streaming} but not distributed \emph{batch}. Authentication,
-multi-tenancy and cost-based query optimisation are out of scope.
-Chapter~\ref{ch:discussion} sets out what each simplification would
-become at production scale.
-
-\section{Contributions}
-\label{sec:contributions}
-
-\begin{enumerate}
-  \item \textbf{An architecture decision argued from the correction
-        channel, not from latency.} We show that the usual Lambda-versus-Kappa
-        comparison --- which turns on replay cost --- resolves differently
-        here because the event that forces recomputation never enters the
-        event log at all (Section~\ref{sec:kappa-rejected}).
-  \item \textbf{A structural mitigation for Lambda's two-codebase
-        problem}, with the two deliberate duplications pinned together by
-        tests that feed identical inputs through both implementations
-        (Section~\ref{sec:lambda-cost}).
-  \item \textbf{A measured, rather than asserted, account of speed-layer
-        error.} We report a revenue drift of zero on three days of four
-        and explain arithmetically why zero is the expected outcome,
-        instead of inflating the injected fault rate to produce a more
-        impressive number (Section~\ref{sec:consistency}).
-  \item \textbf{Six defects found by operating the system}, each
-        generalising beyond this project, including a healthcheck that
-        stayed green over an archiver that had stopped writing
-        (Section~\ref{sec:defects}).
-\end{enumerate}
-
-\section{Report Organisation}
-\label{sec:organisation}
-
-Chapter~\ref{ch:literature} reviews the Lambda and Kappa positions and
-the stream-processing semantics the implementation relies on.
-Chapter~\ref{ch:architecture} states the architecture decision, the
-rejected alternatives, and the technology chosen for each layer with its
-justification. Chapter~\ref{ch:implementation} describes the
-implementation stage by stage: ingestion, speed layer, batch layer and
-orchestration, storage and serving, and observability.
-Chapter~\ref{ch:results} presents the measured results, with the
-speed-versus-batch consistency evidence as its core.
-Chapter~\ref{ch:discussion} discusses what operating the system taught
-us, the limitations and threats to validity, and what would change at
-production scale. Chapter~\ref{ch:conclusion} concludes. The appendices
-carry the repository layout, the database schema, the alert inventory,
-the API surface and the statement of individual contributions.
+Three simplifications follow from running the whole system on a single
+16\,GB laptop from one command. Simulated time is compressed 60-fold, so
+one real second is one simulated minute and a simulated day takes 24 real
+minutes (Section~\ref{sec:simclock}). Kafka runs as a single broker with
+replication factor~1. Batch Spark runs in local mode, so the project
+demonstrates distributed \emph{streaming} but not distributed
+\emph{batch}. Authentication and multi-tenancy are out of scope.
+Section~\ref{sec:production} states what each would become in
+production.

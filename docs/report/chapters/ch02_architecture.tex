@@ -1,0 +1,273 @@
+\chapter{Architecture and Technology Stack}
+\label{ch:architecture}
+
+\section{Background: Lambda, Kappa, and the Critique}
+\label{sec:lit-lambda}
+
+Marz and Warren propose Lambda as an answer to a specific problem: no
+single system is simultaneously fast, exact and fault-tolerant, so use
+three parts~\cite{marz2015bigdata}. An \emph{immutable master dataset}
+records raw facts and is never updated in place; a \emph{batch layer}
+recomputes views over it from scratch; a \emph{speed layer} computes
+incremental, approximate views over the recent data the batch layer has
+not yet covered. Two properties of that construction matter here. The
+batch views are a pure function of an immutable input, so a bug in view
+computation is repaired by fixing the code and recomputing, never by
+editing derived state in place. Helland makes the general version of the
+argument: immutability turns a class of distributed-state problems into
+append-only bookkeeping~\cite{helland2015immutability}. And the speed
+layer's error is \emph{temporary} by construction, discarded once the
+batch view catches up. Kleppmann places both in a wider treatment of
+derived data, where keeping a system of record distinct from a derived
+view is what makes recomputation safe at all~\cite{kleppmann2017ddia}.
+
+Kreps's critique is the standard case against Lambda, and it deserves to
+be taken at full strength~\cite{kreps2014questioning}. He does not argue
+that Lambda is incorrect. He argues that it is expensive in the wrong
+currency: two implementations of one business rule doubles the code you
+must reason about and, worse, gives you two implementations that can
+quietly disagree. His replacement, Kappa, drops the batch layer. One
+stream processor remains, and recomputation means \emph{replaying the
+log} into a new version of the job.
+
+As far as it goes, the critique holds. It rests on an assumption that is
+easy to miss, though, and this use case breaks it: that everything needed
+to recompute a result is \emph{in the log}. Where that is true, replay is
+a complete recomputation story and the batch layer really is redundant
+machinery. The decision rule falls out of it. Choose Lambda when
+recomputation cannot be expressed as a log replay. In practice the rule
+is stated more often than applied, because most published comparisons end
+up weighing operational simplicity against latency, and that is a tie the
+fashionable option tends to win.
+
+\subsection{Event Time, Watermarks and Delivery Semantics}
+\label{sec:lit-semantics}
+
+Three results from the stream-processing literature underpin the
+correctness argument in Chapter~\ref{ch:results}.
+
+Akidau et al.\ formalise \textbf{event time versus processing time}. An
+event's event time is when it happened; its processing time is when the
+system saw it; and the two diverge arbitrarily under network delay,
+retries and partition skew~\cite{akidau2015dataflow}. Group an
+aggregation by processing time and its results depend on infrastructure
+behaviour rather than on the world, which for a financial figure rules it
+out.
+
+\textbf{A watermark is a bet, not a guarantee.} Because a system cannot
+know whether more data will arrive for a past window, it must decide when
+to stop waiting. Dataflow and MillWheel make the same point: the
+watermark trades completeness against latency, and events later than it
+are \emph{dropped}, not
+deferred~\cite{akidau2015dataflow,akidau2013millwheel}. This is the
+mechanism measured in Section~\ref{sec:consistency}. We set our watermark
+tighter than the lateness the simulator injects, which makes the loss
+real and countable instead of hypothetical.
+
+\textbf{End-to-end exactly-once requires idempotent sinks.} Structured
+Streaming guarantees exactly-once with respect to its own state and
+offsets through checkpointing~\cite{armbrust2018structured}, building on
+the micro-batch recovery model of discretised
+streams~\cite{zaharia2013dstreams}. That guarantee stops at the sink: an
+external sink written from \code{foreachBatch} observes
+\emph{at-least-once}, because a failure between writing and committing
+offsets re-executes the batch. The remedy is to make the write
+idempotent, typically by keying it, so a repeated delivery is
+indistinguishable from a single one~\cite{kleppmann2017ddia}. Every sink
+here does that (Section~\ref{sec:impl-sinks}).
+
+Finally, Kafka guarantees ordering \emph{within} a partition and not
+across them~\cite{kreps2011kafka}. That single sentence is why
+partitioning is a correctness decision in this project rather than a
+throughput one (Section~\ref{sec:impl-partitioning}).
+
+\section{The Decision}
+\label{sec:decision}
+
+We implement a \textbf{Lambda architecture}: an immutable master dataset
+written by a dedicated archiver, a \emph{speed layer} computing
+approximate live views, and a \emph{batch layer} recomputing exact views
+from the complete archive (Figure~\ref{fig:architecture}). The decision
+follows from Table~\ref{tab:two-questions} rather than from a preference
+for a named architecture: two consumers need different guarantees from
+the same facts, and a single processing model must either under-serve one
+or lie to the other.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig1-architecture.pdf}
+\caption[System architecture]{System architecture. The blue path is the
+speed layer (seconds old, approximate); the amber path is the batch layer
+(exact, complete, recomputable). Both depend on the same immutable master
+dataset, and both import every shared business rule from
+\code{common/}.}
+\label{fig:architecture}
+\end{figure}
+
+\section{Why Kappa Was Rejected}
+\label{sec:kappa-rejected}
+
+Kappa proposes a single streaming layer, with recomputation achieved by
+replaying the event log~\cite{kreps2014questioning}. It is the more
+fashionable choice, it is genuinely simpler to operate, and its critique
+of duplicated logic is correct. It has earned a specific rejection rather
+than a wave of the hand.
+
+The argument that decides it is recomputation cost. Our requirement is
+not to reprocess data. It is to \emph{restate a past day's financial
+figures} when a partner sends corrected costs. Under Kappa that implies
+three things:
+
+\begin{enumerate}
+  \item \textbf{Retention must cover any day we might restate.} A partner
+        correcting last month's file forces months of Kafka retention
+        purely to enable periodic recomputation. Our actual retention is
+        \textbf{7 days}, covering only speed-layer recovery and archiver
+        catch-up.
+  \item \textbf{Replay is not selective.} Recomputing one day means
+        re-reading the log from at least that day's start. A Parquet lake
+        partitioned by \code{sim\_date} lets the batch job read exactly
+        the one partition it needs; the measured
+        \code{compute\_vehicle\_day} task takes \textbf{9.4 seconds} for
+        a full simulated day.
+  \item \textbf{The correction is not in the stream at all.} The expense
+        file arrives on a \emph{different channel}, as a CSV drop, once
+        per day, long after the telemetry it relates to. There is no
+        event log to replay that would incorporate it. Kappa's
+        recomputation story does not address the thing that actually
+        forces a restatement.
+\end{enumerate}
+
+The third point is the structural one. A Kappa purist could publish the
+expense file onto a topic and treat it as a second stream. We considered
+that. It moves the problem rather than solving it, because restating
+January from a correction that arrives in March still needs the January
+\emph{telemetry} to be replayable, which is point~1 wearing a different
+hat. A batch-only architecture was rejected for the obvious reason: it
+cannot answer ``which vehicles are idle right now''.
+
+\section{What Lambda Costs, and Our Mitigation}
+\label{sec:lambda-cost}
+
+The standard criticism of Lambda is two codebases that
+drift~\cite{kreps2014questioning}. We think the criticism is right, so we
+answered it with structure instead of a promise to be careful. A
+\code{common/} package holds every rule both layers need: the simulated
+clock, zone mapping, event validation, haversine distance, fare maths,
+and all seven profitability flags. The simulators import it, both
+processing layers import it, and so does the serving API. Writing a
+business rule twice counts as a defect here.
+
+Two places do duplicate, and both are duplicated on purpose to avoid the
+most expensive thing this pipeline could do, which is running a Python
+UDF per row over every event. Event validation exists as
+\code{validate\_event()} and as \code{spark\_validation\_expr()};
+haversine distance exists as \code{geo.haversine\_km()} and as inline
+Spark SQL. Each pair is held together by a test that pushes identical
+inputs through both and asserts identical outputs
+(\code{test\_spark\_validation\_matches\_the\_python\_rules} and
+\code{test\_gps\_km\_matches\_the\_python\_haversine}). Those tests are
+the only reason the duplication is defensible. Without them we would have
+exactly the failure Kreps describes.
+
+\section{Technology Stack}
+\label{sec:tech-stack}
+
+Table~\ref{tab:stack} gives each choice with the alternative it beat,
+tied to this use case's constraints rather than to general popularity.
+Every image tag and Python package is pinned; there is no \code{latest}
+anywhere in the project.
+
+\begin{table}[htbp]
+\centering
+\caption{Technology selection, with the rejected alternative for each
+layer.}
+\label{tab:stack}
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Layer} & \textbf{Choice} & \textbf{Why this, not the
+alternative}\\
+\midrule
+Ingestion & Kafka 3.8 (KRaft) &
+  Partitioned ordering is a \emph{correctness} requirement here, not a
+  throughput one (Section~\ref{sec:impl-partitioning}). KRaft removes the
+  ZooKeeper dependency, halving the moving parts on a 16\,GB laptop.\\
+\addlinespace
+Speed layer & Spark Structured Streaming 3.5.3 &
+  Event-time windowing, watermarks and \code{applyInPandasWithState} in
+  one engine~\cite{spark_ss_guide}. Taken on its own, Flink is probably
+  the better stream processor~\cite{carbone2015flink}. But using
+  \emph{one} engine for both layers is what makes \code{common/}
+  shareable, and that shared package is our whole answer to Lambda's
+  central weakness.\\
+\addlinespace
+Master dataset & Parquet on a volume &
+  Columnar, partitioned by event date, read
+  selectively~\cite{parquet_docs}. MinIO was the intended object store
+  but its community images are no longer published; every path is built
+  from \code{LAKE\_ROOT}, so an \code{s3a://} bucket is a one-variable
+  substitution.\\
+\addlinespace
+Batch & Airflow 2.10 + PySpark local mode &
+  Airflow gives retries, dependency ordering and per-task
+  observability~\cite{airflow_docs}. Local mode because one simulated day
+  is roughly 12k events, which a single JVM processes in 9 seconds;
+  client-mode submission would add routing problems for no measurable
+  gain.\\
+\addlinespace
+Serving store & PostgreSQL 16 &
+  Both layers' views live side by side in one queryable
+  store~\cite{postgres_docs}, and upserts on natural keys give idempotent
+  sinks (Section~\ref{sec:impl-sinks}). Cassandra would suit the
+  write-heavy \code{rt\_*} tables but not the analytical scans over
+  \code{batch\_vehicle\_daily}, and running both was unjustified at this
+  volume.\\
+\addlinespace
+API & FastAPI &
+  Pydantic response models make the \code{source: speed|batch} labelling
+  part of the \emph{schema} rather than a
+  convention~\cite{fastapi_docs}; the generated OpenAPI page doubles as
+  the demo surface.\\
+\addlinespace
+Observability & Prometheus, Alertmanager, Grafana &
+  Pull-based scraping suits long-lived
+  services~\cite{prometheus_docs,grafana_docs};
+  Section~\ref{sec:impl-alerting} explains how short-lived Airflow tasks
+  are handled without a Pushgateway.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{The Simulated Clock and the Data Contract}
+\label{sec:simclock}
+
+Everything happens on a compressed timeline, where \textbf{one real
+second is one simulated minute} (\code{COMPRESSION=60}). A simulated day
+takes 24 real minutes, which is the only reason a genuinely \emph{daily}
+reconciliation can be shown inside a lab session. The clock comes from a
+persisted start instant rather than a running counter, so every service
+computes the same \code{sim\_time} without coordinating, and a restarted
+container picks up the same timeline instead of rewinding. Simulated
+day~1 starts at 06:00, so it is a partial day.
+
+We added three fields to the telemetry schema. \code{event\_id} (UUID)
+gives deduplication something stable to key on, which matters because a
+duplicate is by construction \emph{valid} and validation can never catch
+it. \code{schema\_version} lets a future v2 producer coexist with v1
+consumers. \code{event\_type}
+(\code{ping}/\code{trip\_start}/\code{trip\_end}) is the structural one.
+Without an explicit lifecycle marker, counting trips means detecting a
+status \emph{transition} and then aggregating over it, which is a chained
+stateful operator, and Structured Streaming will not allow
+that~\cite{spark_ss_guide}. With the marker, ``trips completed'' is a
+plain \code{count(WHERE event\_type='trip\_end')}, identical in both
+layers.
+
+One reading of an existing field matters more than any of the additions.
+\textbf{\code{fare} is cumulative within a trip and final only on
+\code{trip\_end}}, and zero everywhere else. Revenue is therefore
+\code{SUM(fare) WHERE event\_type='trip\_end'} in both layers. Sum
+\code{fare} across all rows instead and you multiply revenue by roughly
+the number of pings per trip. That is the easiest way to get this
+pipeline's headline number wrong, so the rule carries a test in the
+simulator, the speed layer and the batch layer.

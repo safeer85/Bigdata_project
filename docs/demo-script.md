@@ -53,7 +53,7 @@ Plus **two terminals**, both already `cd`'d into the project: one for commands, 
 **4. Pre-log-in to Grafana and Airflow.** A login screen on camera wastes 20 seconds and looks
 unprepared.
 
-**5. Know your numbers.** Have `docs/report.pdf` §5.2 (the consistency argument) open
+**5. Know your numbers.** Have `docs/report.pdf` §4.1 (the consistency argument) open
 off-camera. The drift figure is the single most important thing you will say.
 
 ---
@@ -244,7 +244,7 @@ Close on the Fleet operations dashboard:
 | No idle alert after 45s | `python scripts/demo.py idle --vehicle V007` and keep narrating; it needs 45 more seconds. Check `curl "localhost:8000/alerts/idle?status=open"`. |
 | `demo-resubmit` says no file yet | No simulated day has closed. You did not wait long enough before recording — stop and wait. |
 | DAG hasn't picked up the resubmit | It polls every 2 real minutes. Keep talking; do **not** trigger it manually on camera. |
-| Drift is zero on every day | Fine, and it is in the script. Say the arithmetic (§6.2) and pivot to `fleet_late_rows_dropped_total`, which is always non-zero. |
+| Drift is zero on every day | Fine, and it is in the script. Say the arithmetic (report §4.1) and pivot to `fleet_late_rows_dropped_total`, which is always non-zero. |
 | A panel shows "No data" | Check the dashboard's time range is `now-15m`, not an old absolute window. |
 | Grafana asks you to log in | admin / admin. Should have been pre-logged-in. |
 

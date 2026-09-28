@@ -244,7 +244,7 @@ docs/report/     LaTeX source for the submitted report (DEIE template):
 
 | Document | Purpose |
 |---|---|
-| [`docs/report.pdf`](docs/report.pdf) | **The submitted report (PDF).** Seven chapters, five appendices, following the DEIE report template. Rebuild with `make report`. |
+| [`docs/report.pdf`](docs/report.pdf) | **The submitted report (PDF).** Five chapters over a 15-page body, plus seven appendices, following the DEIE report template. Rebuild with `make report`. |
 | [`docs/report/`](docs/report/) | **LaTeX source** for the above — `report.tex`, `chapters/`, `bibliography.bib`. This is the single source of truth for the report; there is no Markdown copy to drift from it. |
 | [`docs/demo-script.md`](docs/demo-script.md) | **Shot-by-shot script for recording the 7-minute demo video**, including how to hide the pipeline's real waits. |
 | [`docs/contributions.md`](docs/contributions.md) | **Statement of individual contributions** — who owned what, and the decisions each member defends. Summarised in report Appendix E. |

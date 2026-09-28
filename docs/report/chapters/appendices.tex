@@ -262,3 +262,135 @@ verification each require all three layers alive at once.
 
 A fuller per-member breakdown, including the test files each member
 wrote, is kept in \code{docs/contributions.md} in the repository.
+
+
+\chapter{Defects Found by Operating the System}
+\label{app:defects}
+
+Summarised in Section~\ref{sec:defects}. Each was invisible to
+code review and visible within minutes of checking the numbers against
+expectations.
+
+\begin{table}[htbp]
+\centering
+\caption{Defects found by operating the system, and what each
+generalises to.}
+\label{tab:defects}
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{\#} & \textbf{What happened} & \textbf{The general lesson}\\
+\midrule
+1 & A Spark worker restart killed the archiver's executor. The query
+    stayed ``active'', so \code{awaitTermination()} never returned, the
+    healthcheck stayed green, and the archiver silently stopped writing
+    for \textbf{26 minutes}; the batch layer then reconciled from an
+    incomplete archive. &
+    \textbf{A healthcheck that proves liveness proves nothing about
+    work.} \code{streaming/watchdog.py} now monitors \emph{progress} and
+    exits so Docker restarts from the checkpoint --- verified by killing
+    executors deliberately.\\
+\addlinespace
+2 & The first full reconciliation flagged \textbf{35 of 50} vehicles
+    unprofitable, with costs at 1.9$\times$ revenue. The pipeline was
+    correct; the economics were not calibrated. After recalibration:
+    3--6 of 50, 38--48\% margin. &
+    \textbf{A correct pipeline can produce a useless answer.} Only
+    running it end to end on realistic volumes surfaced this.\\
+\addlinespace
+3 & The odometer ledger checkpointed every 30 \emph{real} seconds ---
+    30 \emph{simulated} minutes at \code{COMPRESSION=60}. A restart lost
+    ~90\,km and flagged \textbf{21 of 50} vehicles for a mismatch the
+    partner had not caused. &
+    \textbf{Intervals chosen in real seconds are 60$\times$ longer in
+    business terms.} A check that fires because of our own restart
+    trains the reader to ignore it.\\
+\addlinespace
+4 & Batch gauges defined in \code{common/metrics.py} --- which every
+    service imports --- meant all five services exported
+    \code{fleet\_batch\_last\_success\_timestamp} at its default of 0,
+    and \code{BatchNotRunRecently} fired forever on four bogus series. &
+    \textbf{Shared code publishes shared metrics.} A
+    permanently-firing false alert is worse than no alert.\\
+\addlinespace
+5 & The expense SLA was evaluated against every file version, so a
+    corrected \code{v2} --- by definition sent after the deadline ---
+    marked every resubmission late. &
+    \textbf{An alert that fires on a normal operation is noise.} The SLA
+    now governs first delivery only.\\
+\addlinespace
+6 & The ``fresh clone $\rightarrow$ one command'' check exposed two
+    Windows-only defects: PowerShell turning Docker's normal stderr
+    progress into a terminating error, and a wrapper binding Docker's
+    \code{-d} flag to itself. &
+    \textbf{Acceptance checks must actually be run.} No amount of
+    reading would have found either.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\chapter{At Production Scale}
+\label{app:production}
+
+Summarised in Section~\ref{sec:production}. Every row is a
+deliberate simplification made for a two-week, single-laptop project,
+paired with what running a real fleet would require.
+
+\begin{table}[htbp]
+\centering
+\caption{Simplifications made here, and what each becomes at production
+scale.}
+\label{tab:production}
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Layer} & \textbf{Today} & \textbf{At scale}\\
+\midrule
+Ingestion & One broker, RF~1, 6 partitions, 7-day retention;
+  \code{schema\_version} plus defensive validation; manual DLQ replay. &
+  Three brokers, RF~3, \code{min.insync.replicas=2}. A \textbf{schema
+  registry} so incompatible producers are rejected at publish time
+  rather than discovered in the DLQ, and an automated replay path.
+  Partition count would follow measured throughput, but the
+  \emph{keying} would not change --- it is a correctness constraint, not
+  a tuning knob.\\
+\addlinespace
+Storage & Parquet on a Docker volume, partitioned by \code{sim\_date};
+  archiver writes every 30\,s. &
+  Object storage (a one-variable change --- every path is built from
+  \code{LAKE\_ROOT}), plus a \textbf{table format} (Iceberg or Delta) for
+  atomic partition overwrites, and \textbf{compaction}, without which the
+  batch \emph{read} outgrows the batch \emph{compute}.\\
+\addlinespace
+Processing & Spark standalone, one worker, 3 cores, both streaming apps
+  co-resident; batch in local mode. &
+  Kubernetes with the Spark operator. The single most valuable change is
+  \textbf{decoupling the archiver from the speed layer} --- they already
+  have separate checkpoints but compete for the same cores, which is how
+  26 minutes of archiving was lost (defect~1).\\
+\addlinespace
+Serving & One PostgreSQL instance for both layers, queried directly by
+  Grafana. &
+  The access patterns diverge: keep PostgreSQL for the \code{rt\_*}
+  point lookups, add read replicas so dashboards cannot slow the
+  streaming sinks, and move \code{batch\_vehicle\_daily} to a columnar
+  warehouse once history outgrows one node. Add caching on
+  \code{/fleet/live} and authentication.\\
+\addlinespace
+Observability & Prometheus, Alertmanager, Grafana, structured JSON logs,
+  correlation IDs. &
+  \textbf{Log aggregation} (Loki or ELK) --- the logs are already
+  structured JSON with a \code{stage} field precisely so this is a
+  deployment step, not a code change. Then \textbf{real tracing}, once
+  multiple producers make ``which producer caused this DLQ spike?''
+  unanswerable from correlation IDs. Then \textbf{SLOs with error
+  budgets}~\cite{beyer2016sre}: \code{IdleVehiclesHigh > 8} is tuned to a
+  50-vehicle fleet and does not survive it doubling.\\
+\addlinespace
+Clock & Simulated time derived from wall-clock elapsed time, so downtime
+  does not pause the world. &
+  \textbf{Annotate known outage windows}, so downstream consumers --- and
+  the \code{becoming\_unprofitable} trend rule in particular --- can
+  exclude degraded days rather than mistaking an incident for a
+  commercial decline.\\
+\bottomrule
+\end{tabularx}
+\end{table}
