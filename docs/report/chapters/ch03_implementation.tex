@@ -4,279 +4,120 @@
 \section{Ingestion}
 \label{sec:impl-ingestion}
 
-\subsection{Partitioning Is a Correctness Decision}
+\subsection{Partitioning and Fault Injection}
 \label{sec:impl-partitioning}
-
-The topic \code{fleet.telemetry} has 6 partitions, \textbf{keyed by
-\code{vehicle\_id}}. Throughput has nothing to do with it. Kafka
-guarantees ordering only \emph{within} a
-partition~\cite{kreps2011kafka}, and the speed layer's per-vehicle state
-machine, which tracks when each vehicle last went idle, assumes it sees
-one vehicle's events in the order they happened. Keying by
-\code{vehicle\_id} is what gives it that. Key round-robin instead and
-every idle measurement quietly goes wrong, without anything anywhere
-raising an error. The dead-letter topic \code{fleet.telemetry.dlq} has one
-partition, since it needs no ordering and one partition keeps every
-rejected event in a single readable stream.
-
-\subsection{Fault Injection}
 \label{sec:impl-faults}
 
-The simulator corrupts its own output, so we can show the error handling
-working rather than claim it does. Table~\ref{tab:faults} gives
-configured against measured rates over roughly 2,700 events. Validation
-rejects rather than repairs: coerce a malformed field and you
-get a confidently wrong money figure downstream, which is worse than a
-rejection somebody can see. The DLQ carries the reason code \emph{and the
-original payload}, so once a producer is fixed its rejected events can be
-replayed. The observed distribution was \code{unparseable\_json}~58,
-\code{coords\_out\_of\_bounds}~23, \code{bad\_status}~17,
-\code{negative\_fare}~12 and \code{negative\_speed}~10.
+\code{fleet.telemetry} has 6 partitions \textbf{keyed by
+\code{vehicle\_id}}. Kafka orders events only within a partition, and
+the per-vehicle idle state machine assumes it sees each vehicle's events
+in order, so keying is a correctness decision, not a throughput one.
+Rejected events go to \code{fleet.telemetry.dlq} with a reason code and
+the original payload, so they can be replayed.
+
+The simulator corrupts its own output (Table~\ref{tab:faults}).
+Validation \emph{rejects rather than repairs}: a coerced field would
+produce a confidently wrong money figure. A second simulator drops one
+versioned expense CSV per simulated day; a corrected \code{v2} for a
+reconciled day triggers recomputation (Section~\ref{sec:recompute}).
 
 \begin{table}[htbp]
 \centering
-\caption{Injected fault rates, configured against measured, and what each
-fault demonstrates.}
+\caption{Injected fault rates, configured against measured
+($\sim$2,700 events).}
 \label{tab:faults}
 \begin{tabularx}{\textwidth}{@{}llrX@{}}
 \toprule
 \textbf{Fault} & \textbf{Config.} & \textbf{Measured} &
 \textbf{What it proves}\\
 \midrule
-Malformed JSON & 0.5\% & 0.40\% &
-  The archiver preserves unparseable bytes; the speed layer
-  dead-letters rather than crashing\\
-Schema-invalid & 0.5\% & 0.77\% &
-  \code{common/validation.py} rejects identically in both layers\\
-Duplicate \code{event\_id} & 1.0\% & 1.03\% &
-  Deduplication works; both copies are \emph{valid}, so nothing else
-  can stop them\\
-Late by 1--20 sim min & 2.0\% & 2.09\% &
-  The consistency argument; see Section~\ref{sec:consistency}\\
+Malformed JSON & 0.5\% & 0.40\% & Archiver keeps raw bytes; speed layer
+  dead-letters instead of crashing\\
+Schema-invalid & 0.5\% & 0.77\% & Shared validation rejects identically
+  in both layers\\
+Duplicate \code{event\_id} & 1.0\% & 1.03\% & Deduplication works\\
+Late by 1--20 sim min & 2.0\% & 2.09\% & The consistency argument
+  (Section~\ref{sec:consistency})\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-A second simulator drops one expense CSV per simulated day. Files are
-versioned, so a partner correcting an earlier submission drops a
-\code{v2} file for a date already reconciled. That is the event the whole
-architecture exists to absorb (Section~\ref{sec:recompute}). The delivery
-SLA governs first delivery only. An early version checked it
-against every version, which meant a corrected \code{v2} marked every
-resubmission late.
-
 \section{The Speed Layer}
 \label{sec:impl-speed}
 
-\subsection{The Archiver Does as Little as Possible}
-\label{sec:impl-archiver}
+\textbf{Archiver.} \label{sec:impl-archiver} A separate Spark application
+with its own checkpoint and \emph{no business logic}, so a bug in the
+speed layer cannot corrupt the master dataset. Unparseable records are
+kept under \code{sim\_date=unknown}.
 
-The archiver is a \emph{separate Spark application} with its own
-checkpoint and \textbf{no business logic at all}. Every past day is
-recomputed from the master dataset, so if the master dataset is corrupt
-then all history is wrong and nothing can recover it. Keeping the
-archiver separate means a bug in the speed layer's validation, windowing
-or state handling \emph{cannot reach it}. The worst such a bug can do is
-produce wrong dashboards, and the next batch run overwrites those.
-Unparseable records are archived under \code{sim\_date=unknown} with
-their raw bytes intact. An archive that quietly dropped them would make
-``how much bad data did we receive?'' unanswerable forever.
+\textbf{Stateful idle alerts.} \label{sec:impl-idle} ``Idle for 45
+simulated minutes?'' needs per-vehicle memory across micro-batches and
+must fire even when no event arrives, so it uses
+\code{applyInPandasWithState}. The timer starts on the
+\emph{transition} into idle; events are sorted by event time before
+folding; a stale out-of-order event does not rewind state; and an
+\code{EventTimeTimeout} is used so the rule does not depend on clock
+compression. Because event-time timeouts need the watermark to advance, a
+fleet-wide silence is covered separately by the
+\code{TelemetryNotProduced} alert.
 
-\subsection{Stateful Idle Alerts}
-\label{sec:impl-idle}
-
-No window or aggregation can answer ``has this vehicle been idle for 45
-simulated minutes?''. Answering it needs memory of \emph{when} the
-vehicle last stopped being idle, carried across micro-batches, plus the
-ability to fire when no new event arrives at all, since a silent
-vehicle is exactly the case we care about.
-\code{applyInPandasWithState} is the only Structured Streaming construct
-that offers both~\cite{spark_ss_guide}. Four details decide whether it
-works, and each is a defect if you get it wrong:
-
-\begin{enumerate}
-  \item \textbf{The stopwatch starts on the \emph{transition} into
-        idle}, not on every idle ping. Resetting per ping means the timer
-        never advances and no alert can fire.
-  \item \textbf{Events are sorted by event time before folding}, because
-        a micro-batch may interleave partitions.
-  \item \textbf{A stale out-of-order event does not rewind the state.}
-        The event is not lost, since the archive holds it and the batch
-        layer counts it, but rewinding would corrupt the idle
-        measurement.
-  \item \textbf{\code{EventTimeTimeout}, not
-        \code{ProcessingTimeTimeout}.} A processing-time timeout fires
-        after $N$ \emph{real} seconds, so changing the clock compression
-        would silently change the business rule.
-\end{enumerate}
-
-This design has a consequence we would rather state than hide. An
-event-time timeout fires only when the watermark advances, and the
-watermark advances only when other events
-arrive~\cite{akidau2015dataflow}. If the whole fleet went silent at once,
-no timeout would fire at all. A different control covers that case: the
-\code{TelemetryNotProduced} alert, which watches the producer directly.
-
-\subsection{Idempotent Sinks}
-\label{sec:impl-sinks}
-
-\code{foreachBatch} gives \textbf{at-least-once} delivery. If the driver
-dies after writing a micro-batch but before committing offsets, Spark
-re-runs the batch and the sink sees the same rows
-twice~\cite{armbrust2018structured}. With plain inserts, every dashboard
-figure would ratchet upward on each restart and never come back down.
-Every sink therefore upserts on a natural key:
-\code{rt\_vehicle\_state} on \code{(vehicle\_id)},
-\code{rt\_zone\_hourly} on \code{(zone\_id, window\_start)},
-\code{rt\_vehicle\_daily} on \code{(vehicle\_id, sim\_date)}, and
-\code{idle\_alerts} on \code{(vehicle\_id, opened\_at)}. A repeated write
-then sets the same values it set the first
-time~\cite{kleppmann2017ddia}. It also lets the windowed aggregations use
-\code{update} output mode, which they need: under \code{append}, a window
-is withheld until the watermark passes its end, so the \emph{current}
-simulated hour, the one thing a live dashboard exists to show, would
-never appear.
+\textbf{Idempotent sinks.} \label{sec:impl-sinks} \code{foreachBatch} is
+at-least-once, so every sink upserts on a natural key
+(\code{rt\_vehicle\_state} on \code{vehicle\_id}, \code{rt\_zone\_hourly}
+on \code{(zone\_id, window\_start)}, \code{rt\_vehicle\_daily} on
+\code{(vehicle\_id, sim\_date)}, \code{idle\_alerts} on
+\code{(vehicle\_id, opened\_at)}). A replayed batch rewrites the same
+values, and \code{update} output mode shows the current hour live.
 
 \section{The Batch Layer and Orchestration}
 \label{sec:impl-batch}
-
-\subsection{The Batch Layer Trusts Nothing}
 \label{sec:impl-trust}
 
-\code{compute\_vehicle\_day} re-reads the raw archive and re-applies the
-same validation and deduplication from scratch. It never reads the speed
-layer's output, and it applies \textbf{no watermark}. It is reading a
-complete, closed day, so lateness means nothing to it, and it
-deduplicates across the whole day instead of within a watermark window.
-That independence is the only reason the drift measurement in
-Section~\ref{sec:consistency} means anything: the two figures really are
-arrived at twice. Its outputs per vehicle-day are \code{trips},
-\code{revenue}, \code{gps\_km} (haversine between consecutive pings,
-discarding jumps above 150\,km/h), \code{online\_min},
-\code{on\_trip\_min}, \code{idle\_min} and \code{utilization}.
+\code{compute\_vehicle\_day} re-reads the raw archive and re-applies
+validation and deduplication itself, with \textbf{no watermark}; it never
+reads speed-layer output, so the drift measurement compares two
+independent computations. It produces per vehicle-day trips, revenue,
+GPS distance, online/on-trip/idle minutes and utilisation. Telemetry and
+expenses are joined with a \textbf{full outer join} so that vehicles with
+no cost record (\code{missing\_costs}) and cost records with no telemetry
+(\code{missing\_telemetry}) are flagged rather than silently dropped.
 
-The reconciliation joins telemetry to expenses with a full outer join,
-and the choice is not accidental. An inner join would quietly drop
-the two findings the business most needs to see: telemetry with no
-expense row (\code{missing\_costs}, meaning we are blind to a vehicle's
-costs) and an expense row with no telemetry
-(\code{missing\_telemetry}, meaning we are being billed for a vehicle
-that never reported).
+Airflow runs in real time, so the nine-task DAG polls every 2 real
+minutes and its first task picks the pending simulated day.
+\code{load\_batch\_views} deletes and re-inserts a date's rows in one
+transaction, making recomputation idempotent and atomic.
 
-\subsection{Schedule and Recomputation}
-
-Airflow's scheduler lives in real time and knows nothing about the
-compressed clock. So the DAG runs every 2 real minutes and its
-\emph{first} task works out which simulated day is pending. The schedule
-is a poll; the date selection comes from the data. We did try expressing
-the schedule in simulated time, and got an interval 60 times longer than
-we meant. The DAG has nine tasks: \code{find\_pending\_date},
-\code{check\_expense\_file}, \code{validate\_expenses},
-\code{compute\_vehicle\_day}, \code{reconcile\_profitability},
-\code{load\_batch\_views}, \code{compute\_drift},
-\code{generate\_report} and \code{record\_run}.
-
-\code{load\_batch\_views} deletes every row for the target
-\code{sim\_date} and inserts the recomputed set inside a single
-transaction, so rerunning a date produces the same row count with updated
-values and a partially applied recompute is impossible. This is the
-property the architecture exists to provide, demonstrated in
-Section~\ref{sec:recompute}.
-
-\section{Storage and Serving}
+\section{Serving}
 \label{sec:impl-serving}
-
-Both layers' outputs live in one PostgreSQL instance, every \code{rt\_*}
-table keyed on its natural key so the streaming upserts work
-(Appendix~\ref{app:schema}). The API exposes eleven documented endpoints
-(Appendix~\ref{app:api}), the consolidated daily report is served at
-\code{GET /reports/\{sim\_date\}}, and two Grafana dashboards read the
-same tables.
-
-\subsection{The Lambda Merge Is Explicit, Never Blended}
 \label{sec:impl-merge}
 
-\code{GET /vehicles/\{id\}} returns three blocks, each labelled with its
-own \code{source} and \code{as\_of}: \code{live} and \code{today} carry
-\code{"source": "speed"}, while \code{history} carries
-\code{"source": "batch"}. We do not merge them into a single
-figure. The two layers answer different questions under different
-guarantees, and a consumer has to be able to see at a glance which
-numbers are safe to quote to finance. Blending them is how a dashboard
-estimate ends up in a financial statement. ``Now'' is always
-\emph{simulated} now, taken from \code{max(last\_event\_time)} rather
-than the database clock, so if ingestion stalls then ``now'' stops
-advancing and the active-vehicle count drops to zero instead of quietly
-lying.
+Both layers write to one PostgreSQL instance. FastAPI exposes eleven
+endpoints (Appendix~\ref{app:api}), including the daily report at
+\code{GET /reports/\{sim\_date\}}, and two Grafana dashboards read the
+same tables. \code{GET /vehicles/\{id\}} returns \code{live} and
+\code{today} blocks labelled \code{"source": "speed"} and a
+\code{history} block labelled \code{"source": "batch"} --- never blended,
+so a dashboard estimate cannot end up in a financial statement.
 
 \section{Observability}
 \label{sec:impl-observability}
-
-Four questions drive every metric. Nothing is collected merely because it
-was easy to collect.
-
-\emph{Is data arriving?} \code{fleet\_events\_produced\_total} and
-\code{fleet\_faults\_injected\_total} answer that, and between them they
-separate ``the producer is silent'' from ``the producer is gone'', which
-is why the alert tests both \code{increase()==0} and \code{absent()}.
-\emph{Is it being processed?}
-\code{fleet\_stream\_last\_progress\_timestamp} and its siblings, all
-recorded per query rather than per process, because a container can look
-perfectly healthy while one of its five queries sits frozen. \emph{Is it
-correct?} \code{fleet\_dlq\_events\_total},
-\code{fleet\_late\_rows\_dropped\_total} and
-\code{fleet\_speed\_batch\_drift\_ratio}, which measure imprecision we
-know about and have accepted, on the principle that a pipeline unable to
-quantify its own error has no business handling money. \emph{Is the
-business healthy?} \code{fleet\_open\_idle\_alerts} and the profitability
-flags, kept well away from pipeline health, because
-\code{IdleVehiclesHigh} fires when everything works and the fleet simply
-is not earning.
-
-Every log line is one JSON object carrying \code{ts}, \code{level},
-\code{service}, \code{stage}
-(\code{ingestion}/\code{processing}/\code{storage}/\code{serving}/\code{orchestration}),
-\code{event}, \code{msg} and \code{sim\_time}. That last field
-matters most here, because on a compressed clock a wall-clock timestamp
-tells you nothing about \emph{which simulated hour} a line belongs to.
-Per-event logging is sampled 1-in-$N$: at 50 vehicles emitting every 2
-seconds, an INFO line per event buries everything else, so the useful
-granularity is one line per micro-batch carrying counts.
-
-We do not implement distributed tracing at all. What we implement is
-\textbf{correlation-ID propagation}. \code{event\_id} travels producer
-$\rightarrow$ Kafka $\rightarrow$ archiver $\rightarrow$ DLQ
-$\rightarrow$ batch dedup. \code{vehicle\_id} travels through every stage
-and doubles as the partition key. \code{run\_id} tags every Airflow task
-and batch table, and \code{sim\_date} identifies the lake partition and
-the report filename. So a rejected event can be traced from its DLQ
-reason back to its original payload, and a reconciled figure back to the
-run and expense-file version behind it. What we give up is per-request
-span timing across service boundaries. In a pipeline whose hops are Kafka
-offsets and Parquet partitions rather than RPC calls, spans would add
-infrastructure without answering a question we actually have.
-Section~\ref{sec:production} says when that stops being true.
-
-\subsection{Alerting Decisions Worth Defending}
 \label{sec:impl-alerting}
 
-\textbf{Kafka lag comes from Spark's own query progress, not from a lag
-exporter.} Structured Streaming never commits consumer-group offsets. It
-tracks them in its checkpoint instead, which means
-\code{kafka-consumer-groups.sh} and every off-the-shelf exporter report
-\emph{nothing} for these consumers. The number exists in one place only:
-the progress event's source metrics.
+Metrics answer four questions: \emph{is data arriving}
+(\code{fleet\_events\_produced\_total}), \emph{is it processed}
+(per-query \code{fleet\_stream\_last\_progress\_timestamp}), \emph{is it
+correct} (\code{fleet\_dlq\_events\_total},
+\code{fleet\_late\_rows\_dropped\_total},
+\code{fleet\_speed\_batch\_drift\_ratio}), and \emph{is the business
+healthy} (\code{fleet\_open\_idle\_alerts}). Kafka lag is read from
+Spark's query progress, because Structured Streaming does not commit
+consumer-group offsets. Batch outcomes are exported by the API from
+PostgreSQL instead of a Pushgateway, since Airflow tasks exit before
+Prometheus scrapes.
 
-\textbf{Batch metrics are exported by the API from PostgreSQL, not
-pushed.} Airflow tasks are short-lived and Prometheus pulls, so by the
-time a scrape happens the task has exited. A Pushgateway would work, but
-it is one more service holding job state indefinitely with no notion of
-staleness, and the Prometheus documentation discourages it for exactly
-this pattern~\cite{prometheus_docs}. The batch layer already persists its
-outcomes because the API and the report need them, so re-exporting costs
-us nothing and means the metric and the report cannot disagree.
-
-Ten alert rules are defined (Appendix~\ref{app:alerts}), each with a
-\code{for:} duration, a severity and a runbook entry.
-Section~\ref{sec:alerting-results} reports which have been verified
-firing and delivered.
+Every log line is a JSON object with \code{service}, \code{stage},
+\code{event} and \code{sim\_time}. Instead of distributed tracing we
+propagate correlation IDs: \code{event\_id}, \code{vehicle\_id},
+\code{run\_id} and \code{sim\_date} link a DLQ entry or a reconciled
+figure back to its source. Ten alert rules are defined
+(Appendix~\ref{app:alerts}).

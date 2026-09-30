@@ -1,38 +1,28 @@
 \chapter{Results and Discussion}
 \label{ch:results}
 
-Every figure below was read off the running stack, not estimated. We
-started the system from a fresh clone with \code{make up} and left it
-alone; the Airflow DAG reconciled four simulated days without anyone
-touching it. The metrics come from the Prometheus endpoints and the
-PostgreSQL bookkeeping tables, which are the same sources the dashboards
-and the daily report read.
+All figures were read from the running stack, started from a fresh clone
+with \code{make up}; the DAG reconciled four simulated days unattended.
 
 \section{The Consistency Argument}
 \label{sec:consistency}
 
-This section is where the architecture earns its keep. The speed layer
-applies a 10-simulated-minute watermark while the simulator injects
-lateness of up to 20 simulated minutes, and we left that gap open on
-purpose. Set the watermark to 25 and it catches everything, the two
-layers agree perfectly, and the project has no evidence left for why the
-batch layer exists at all. A regression test fails if anyone raises it.
+The speed layer uses a 10-simulated-minute watermark while the simulator
+injects lateness of up to 20 minutes, so the layers are \emph{built} to
+disagree (Figure~\ref{fig:consistency}); a regression test stops anyone
+widening the watermark to hide this.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig2-consistency.pdf}
-\caption[Why the two layers disagree]{Why the two layers disagree, and by
-how much. An event's lateness decides which layer counts it; the funnel
-shows why that translates into a near-zero revenue drift on a typical
-day.}
+\includegraphics[width=0.9\textwidth]{figures/fig2-consistency.pdf}
+\caption[Why the two layers disagree]{Why the two layers disagree: an
+event's lateness decides which layer counts it.}
 \label{fig:consistency}
 \end{figure}
 
 \begin{table}[htbp]
 \centering
-\caption{Reconciliation outcomes over four consecutive simulated days.
-Revenue drift is the relative difference between the speed layer's and
-the batch layer's daily revenue.}
+\caption{Reconciliation outcomes over four simulated days.}
 \label{tab:four-days}
 \begin{tabularx}{\textwidth}{@{}lRRRRR@{}}
 \toprule
@@ -41,172 +31,72 @@ the batch layer's daily revenue.}
 \textbf{Revenue drift}\\
 \midrule
 2024-01-01 (partial) & 42.8\% & 6 & 0 & 2 & 0.000000\\
-2024-01-02           & 38.3\% & 4 & 0 & \textbf{21} & \textbf{0.003384}\\
+2024-01-02           & 38.3\% & 4 & 0 & 21 & \textbf{0.003384}\\
 2024-01-03           & 45.8\% & 3 & 6 & 6 & 0.000000\\
 2024-01-04           & 47.7\% & 4 & 7 & 4 & 0.000000\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-On 2024-01-02 the drift was 0.34\%, with
-\code{speed\_trips}~=~316 against \code{batch\_trips}~=~317. One late
-\code{trip\_end} event, dropped by the watermark and recovered by the
-batch layer. That single row is the clearest evidence in the project,
-because the mechanism is countable and we can point at the event behind
-it.
-
-We had expected a visibly non-zero drift every day and did not get one.
-Working out why turned into a better argument than a dramatic number
-would have been. Over one simulated day the producer emitted 11,972
-events and injected 225 late ones (1.9\%), the watermark dropped
-\textbf{15 rows}, and 3.4\% of all events are \code{trip\_end}. So the
-number of dropped revenue-bearing events we should expect per day is
-$15 \times 0.034 \approx 0.5$, which is to say about half of one. On any
-given day zero drift is the most likely single outcome, with non-zero
-turning up occasionally, and that is what Table~\ref{tab:four-days}
-shows.
-
-The two metrics do different jobs and the report leans on both.
-\code{fleet\_late\_rows\_dropped\_total} shows the \emph{mechanism}, and
-it is reliably non-zero. \code{fleet\_speed\_batch\_drift\_ratio} shows
-the \emph{financial weight} of that mechanism, and it sits near zero most
-days. Either one on its own misleads: the first makes the problem look
-bigger than it is, the second makes it look like nothing is happening.
-
-Our case for computing money in the batch layer was never that the speed
-layer is wildly wrong. It is that \textbf{the speed layer's error is
-unbounded in principle and unknowable in advance}. A watermark is a bet
-on how late data arrives~\cite{akidau2015dataflow}, and most days that
-bet is won comfortably. A partner resubmitting a corrected file for last
-month is a different thing entirely, and no watermark value answers it.
-Only recomputation from an immutable archive does. We could have inflated
-the injected fault rates and reported a bigger number. We did not.
-Reporting \code{0.000000} next to the arithmetic above is more defensible
-than reporting 8\% after quietly editing the simulator.
+On 2024-01-02 the speed layer counted 316 trips against the batch
+layer's 317: one late \code{trip\_end} dropped by the watermark and
+recovered by the batch layer. Drift is usually zero because, per day, the
+watermark drops about 15 rows and only 3.4\% of events are
+\code{trip\_end}, so the expected number of lost revenue events is
+$15 \times 0.034 \approx 0.5$. \code{fleet\_late\_rows\_dropped\_total}
+therefore shows the \emph{mechanism} (reliably non-zero) and
+\code{fleet\_speed\_batch\_drift\_ratio} its \emph{financial weight}
+(usually zero). The case for batch-computed money is not that the speed
+layer is badly wrong, but that its error is unbounded in principle, and
+no watermark can absorb a correction arriving weeks later.
 
 \section{Recomputation Demonstrated}
 \label{sec:recompute}
 
-Two experiments test the property the whole architecture exists to
-provide. First, we dropped a \code{v2} expense file for a day already
-reconciled. The day went pending again and the recompute produced
-\textbf{the same 50 rows with different values}, net profit moving from
-19,770.78 to 21,177.99, with the quarantined-row count falling from 1 to
-0. Second, we triggered the DAG manually with
-\code{\{"sim\_date": "2024-01-03", "force": true\}}. It recomputed that
-date to \textbf{bit-identical figures} (net 24,902.95) under a fresh
-\code{computed\_at} timestamp, so recomputation here is deterministic,
-not just repeatable.
-
-That is Section~\ref{sec:kappa-rejected}'s argument in concrete form. The
-correction arrived on the file channel, and the restatement came out of
-re-reading a single Parquet partition, with no log replay involved at any
-stage.
+Dropping a \code{v2} expense file for a reconciled day made it pending
+again; the recompute produced \textbf{the same 50 rows with new values}
+(net profit 19,770.78 $\rightarrow$ 21,177.99). A forced rerun of
+2024-01-03 returned \textbf{bit-identical figures} (net 24,902.95). The
+restatement came from one Parquet partition, with no log replay.
 
 \section{Verification}
 \label{sec:alerting-results}
 
-Ten alert rules are defined, and \textbf{five have been watched firing
-\emph{and} arriving} end to end through Alertmanager into the
-\code{alert\_notifications} table (Appendix~\ref{app:alerts}). A sixth,
-\code{BatchRunFailed}, fired and was stopped on purpose. A
-missing partner file makes the reconciliation record a failed run, so the
-rule fired alongside \code{ExpenseFileLate} for a single root cause, and
-an Alertmanager inhibit rule suppresses it (the API confirms this with
-\code{inhibitedBy = 1}). Sending two alerts for one cause, where the
-second one misleads, is how a team learns to ignore its alert
-channel~\cite{beyer2016sre}. Nothing was broken in that scenario; we were
-waiting on a supplier. Batch task durations came out at
-\code{compute\_vehicle\_day} 9.44\,s, \code{load\_batch\_views} 0.99\,s,
-\code{reconcile\_profitability} 0.45\,s, and everything else under
-0.04\,s.
-
-Everything claimed here was run against the live stack: 202
-unit, PySpark and API tests pass; the end-to-end smoke test passes
-28 of 28 checks; a fresh clone reaches all 13 services healthy
-and serving live data on a single command; four simulated days reconciled
-cleanly at a 38--48\% fleet margin; 5 of 10 alert rules are
-verified firing and delivered, with a sixth intentionally inhibited; and
-23 of 23 Grafana panel queries return live data.
-
+\begin{itemize}
+  \item 202 unit, PySpark and API tests pass; the smoke test passes 28/28
+        checks; all 13 services start healthy from a fresh clone.
+  \item 5 of 10 alert rules were observed firing \emph{and} delivered;
+        \code{BatchRunFailed} is deliberately inhibited when
+        \code{ExpenseFileLate} explains the same failure.
+  \item 23 of 23 Grafana panel queries return live data.
+  \item Batch task times: \code{compute\_vehicle\_day} 9.44\,s,
+        \code{load\_batch\_views} 0.99\,s, all others under 0.5\,s.
+\end{itemize}
 
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{What Running It Taught Us}
-\label{sec:defects}
+\textbf{Defects found by operating the system.} \label{sec:defects}
+Six defects surfaced only at runtime. The most
+serious: a Spark worker restart killed the archiver's executor while the
+query stayed ``active'', so the \textbf{healthcheck stayed green} while
+nothing was archived for 26 minutes (fixed by a progress watchdog).
+Others: an odometer checkpoint every 30 real seconds (30 simulated
+minutes) that caused false distance mismatches; uncalibrated economics
+flagging 35 of 50 vehicles unprofitable; batch gauges exported by every
+service, firing a permanent false alert; an expense SLA applied to
+corrected \code{v2} files; and two Windows-only start-up bugs.
 
-We found six defects by running the system, not by reading the code. None
-of them was visible in review. A Spark worker restart killed the
-archiver's executor while the query stayed ``active'', so
-\code{awaitTermination()} never returned, \textbf{the healthcheck stayed
-green}, and the archiver stopped writing the master dataset for 26
-minutes without saying a word. The batch layer then reconciled a day from
-that incomplete archive. Separately, the odometer ledger checkpointed
-every 30 \emph{real} seconds, which at \code{COMPRESSION=60} is 30
-\emph{simulated} minutes, so a restart of our own making flagged 21 of 50
-vehicles for a distance mismatch no partner had caused. And the first
-full reconciliation called 35 of 50 vehicles unprofitable. The pipeline
-was right the whole time; the economics simply had not been calibrated.
-Appendix~\ref{app:defects} lists all six with the lesson each one
-carries.
+\textbf{Limitations.} Four days is one run of one configuration, and
+day~1 is partial. \code{becoming\_unprofitable} needs three reconciled
+days to fire. Batch Spark runs in local mode and Kafka has a single
+broker at RF~1. Because simulated time follows the wall clock, downtime
+appears in the data as low demand.
 
-\subsection{Limitations}
-\label{sec:limitations}
-
-Set out plainly, since nobody believes a report that claims no
-weaknesses.
-
-\begin{itemize}
-  \item \textbf{Single-run measurements.} Four days is one run of one
-        configuration, and the drift figures are small integer counts
-        dominated by the arrival of late \code{trip\_end} events. The
-        arithmetic in Section~\ref{sec:consistency} is there so a reader
-        can judge the expected variance instead of over-reading four
-        samples. Day~1 is also partial (06:00 start), so its 42.8\%
-        margin is not comparable with the rest.
-  \item \textbf{The revenue drift is usually zero.} You can see the
-        mechanism in \code{fleet\_late\_rows\_dropped\_total}. You
-        usually cannot see its financial impact. Anyone hoping for a
-        dramatic number will be disappointed.
-  \item \textbf{Some findings need more days than a demo has.}
-        \code{becoming\_unprofitable} wants three reconciled days before
-        it will fire. That is the behaviour we want, since a trend drawn
-        from two points is not a trend, but it does constrain what a
-        short demo can show. ``Lemon'' vehicles have the same problem:
-        they are flagged more often, not always, at 25\% of vehicle-days
-        against 12.8\% for the rest of the fleet.
-  \item \textbf{Batch Spark runs in local mode}, so distributed
-        \emph{batch} is designed for but never demonstrated. And with
-        \textbf{one Kafka broker at RF~1}, losing the broker means losing
-        anything not yet archived.
-  \item \textbf{Downtime creates real data gaps.} Simulated time comes
-        from wall-clock time, so while the stack is stopped, simulated
-        hours keep passing with no events emitted. A fifth simulated day
-        was measurably degraded by our own outage testing. The pipeline
-        reported the reduced revenue faithfully instead of inventing
-        something, which is the behaviour we want, but it does mean
-        operational downtime looks exactly like low demand in the data.
-\end{itemize}
-
-\subsection{At Production Scale}
-\label{sec:production}
-
-Every simplification above exists because this is a two-week project on
-one laptop. Appendix~\ref{app:production} pairs each with what a real
-fleet would need. Three changes matter more than the rest.
-
-Ingestion would move to three brokers at RF~3 behind a schema registry,
-so an incompatible producer is rejected at publish time instead of being
-discovered later in the dead-letter queue. The \emph{keying} would stay
-as it is, because that is a correctness constraint and not a tuning knob.
-Processing would move to Kubernetes, and the change worth making first is
-pulling the archiver off the same worker as the speed layer. They already
-have separate checkpoints, but they compete for the same cores, and that
-competition is how we lost 26 minutes of archiving. Observability would
-gain log aggregation before anything else, which is a deployment step
-rather than a code change, since the logs are already structured JSON
-carrying a \code{stage} field. Real tracing would come next, and SLOs
-with error budgets after that. A threshold like
-\code{IdleVehiclesHigh > 8} is tuned to a 50-vehicle fleet and will not
-survive that fleet doubling~\cite{beyer2016sre}.
+\textbf{At production scale.} \label{sec:production}
+Kafka would move to three brokers at RF~3 with a
+schema registry (keeping the \code{vehicle\_id} key); the lake would use
+object storage with a table format such as Iceberg or Delta and
+compaction; processing would run on Kubernetes with the archiver
+separated from the speed layer; and observability would add log
+aggregation, tracing, and SLOs with ratio-based thresholds.

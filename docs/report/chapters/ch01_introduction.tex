@@ -1,93 +1,62 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-A ride-hailing operator runs two businesses at once. One is an operations
-business, conducted minute by minute: where are the cars, how many are
-earning, which driver has been sitting still for an hour. The other is a
-financial business, conducted a day at a time: what did each vehicle
-earn, what did it cost to run, and is it still worth keeping on the road.
-This project builds one platform that answers both, and argues that the
-interesting decision is not how to answer either but how to answer both
-without letting the fast answer contaminate the exact one.
+A ride-hailing operator runs two businesses at once: an operations
+business conducted minute by minute (where are the cars, which are
+earning, which have been idle for an hour) and a financial business
+conducted a day at a time (what did each vehicle earn and cost, and is
+it still worth running). This project builds one platform that answers
+both without letting the fast answer contaminate the exact one.
 
-\section{Background and Problem Statement}
+\section{Problem Statement}
 \label{sec:problem}
 
-The brief~\cite{ec8203brief} specifies two ingestion paths that behave
-very differently. A streaming source emits GPS and telemetry events per
-vehicle every few seconds
-(\code{trip\_id}, \code{driver\_id}, \code{vehicle\_id}, latitude,
-longitude, speed, status, fare, timestamp). A daily batch source drops
-one file per simulated day carrying expense records from garages and fuel
-partners (\code{vehicle\_id}, \code{fuel\_cost},
-\code{maintenance\_cost}, \code{distance\_covered},
-\code{service\_flag}).
+The brief specifies two ingestion paths. A \textbf{streaming source}
+emits GPS and telemetry per vehicle every few seconds (\code{trip\_id},
+\code{driver\_id}, \code{vehicle\_id}, position, speed, status, fare,
+timestamp). A \textbf{daily batch source} drops one file per simulated
+day of expense records from garages and fuel partners
+(\code{vehicle\_id}, \code{fuel\_cost}, \code{maintenance\_cost},
+\code{distance\_covered}, \code{service\_flag}). The telemetry is
+high-volume and tolerant of small losses; the expense file is owned by a
+third party, \emph{authoritative about money}, and can be corrected and
+resubmitted days later, forcing published figures to be restated.
 
-They differ in more than cadence. The telemetry stream is high-volume,
-continuous, owned by us, and tolerant of small losses. The expense file
-is low-volume, periodic, owned by a third party, and \emph{authoritative
-about money}. It can also be wrong and be corrected: a fuel-card partner
-that mis-keys a reconciliation resubmits days later, and the figures
-published in the meantime must be restated. That asymmetry, more than any
-latency requirement, drives everything that follows.
-
-The brief poses what looks like one business question: \emph{what is
-fleet utilisation and earnings by area and time of day right now, and
-which vehicles are becoming unprofitable once yesterday's fuel and
-maintenance costs are factored in?} It is really two, and their
-requirements conflict, as Table~\ref{tab:two-questions} sets out.
+The business question --- \emph{what is utilisation and earnings by area
+right now, and which vehicles are becoming unprofitable once yesterday's
+costs are applied?} --- is really two questions with conflicting
+requirements (Table~\ref{tab:two-questions}).
 
 \begin{table}[htbp]
 \centering
-\caption{The brief contains two sub-questions with incompatible
-requirements. No single processing model serves both well.}
+\caption{The two sub-questions and their incompatible requirements.}
 \label{tab:two-questions}
 \begin{tabularx}{\textwidth}{@{}lXX@{}}
 \toprule
 & \textbf{Live utilisation} & \textbf{Daily profitability}\\
 \midrule
-Latency required    & seconds & next morning is acceptable\\
-Accuracy required   & approximate is fine & exact; it is money\\
-Completeness        & best effort & must cover the whole day\\
-Recomputable?       & no need & \textbf{yes}, because partners resubmit
-                                corrected files\\
-Consumer            & dispatcher watching a map & finance, making
-                                retire/keep decisions\\
+Latency       & seconds & next morning is acceptable\\
+Accuracy      & approximate is fine & exact; it is money\\
+Recomputable? & no need & \textbf{yes}; partners resubmit files\\
+Consumer      & dispatcher watching a map & finance, making
+                retire/keep decisions\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-A dispatcher deciding where to send a car needs an answer in seconds and
-does not care if one trip is missing. A finance analyst deciding whether
-to retire a vehicle needs a figure that is complete, exact and
-\emph{reproducible}. Serving both from one processing model means either
-making the dispatcher wait for exactness they do not need, or letting
-finance quote a number whose error is unbounded and unknown. The problem
-is to provide both guarantees from one dataset while making it impossible
-for a consumer to confuse them.
-
 \section{Objectives and Scope}
 \label{sec:objectives}
 
-We set out to choose between Lambda and Kappa on the evidence of this use
-case, and to say exactly why the loser lost. Both ingestion paths are
-simulated Python sources that inject faults into their own output, so the
-error handling can be shown working instead of claimed. The processing
-does real work on the data: cleaning, zone enrichment, windowed
-aggregation, stateful alerting, and a join across the two sources.
-Results land in a queryable store behind a live dashboard and a
-consolidated daily report. Every stage is instrumented, and what is
-instrumented includes the pipeline's \emph{known imprecision}, not just
-its health. That last point turned out to be the most interesting part of
-the project, so we measured the imprecision rather than assuming a value
-for it.
+The objectives were to choose between Lambda and Kappa on the evidence of
+this use case; to simulate both sources with injected faults so error
+handling is demonstrated rather than claimed; to perform real processing
+(cleaning, zone enrichment, windowed aggregation, stateful alerting and a
+cross-source join); to serve results through a store, API, dashboards and
+a daily report; and to instrument every stage, including the pipeline's
+\emph{known imprecision}.
 
-Three simplifications follow from running the whole system on a single
-16\,GB laptop from one command. Simulated time is compressed 60-fold, so
-one real second is one simulated minute and a simulated day takes 24 real
-minutes (Section~\ref{sec:simclock}). Kafka runs as a single broker with
-replication factor~1. Batch Spark runs in local mode, so the project
-demonstrates distributed \emph{streaming} but not distributed
-\emph{batch}. Authentication and multi-tenancy are out of scope.
-Section~\ref{sec:production} states what each would become in
-production.
+The whole system runs on one 16\,GB laptop from one command, which forces
+three simplifications: simulated time is compressed 60-fold
+(Section~\ref{sec:simclock}), Kafka is a single broker at replication
+factor~1, and batch Spark runs in local mode. Authentication is out of
+scope.

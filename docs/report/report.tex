@@ -34,8 +34,8 @@
 \newcolumntype{R}{>{\raggedleft\arraybackslash}X}
 
 %--------------------------------------------------------------------
-% Density. This report is a mini-project bound by a 8-15 page guideline
-% on the body, and it carries 20 tables in that space. These values
+% Density. This report is a mini-project bound by a 10-13 page target
+% overall. These values
 % tighten the gaps around lists, tables and floats without touching
 % line spacing, font size or margins, all of which the DEIE template
 % fixes and none of which may be altered.
@@ -62,6 +62,17 @@
 \setlength{\cftbeforefigskip}{0pt}
 \setlength{\cftbeforetabskip}{0pt}
 \renewcommand{\cftchapfont}{\bfseries}
+% Contents, figures and tables share one page, so their titles are smaller
+% and closer together than tocloft's chapter-sized defaults.
+\renewcommand{\cfttoctitlefont}{\LARGE\bfseries}
+\renewcommand{\cftloftitlefont}{\LARGE\bfseries}
+\renewcommand{\cftlottitlefont}{\LARGE\bfseries}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftbeforeloftitleskip}{12pt}
+\setlength{\cftbeforelottitleskip}{12pt}
+\setlength{\cftaftertoctitleskip}{8pt}
+\setlength{\cftafterloftitleskip}{8pt}
+\setlength{\cftafterlottitleskip}{8pt}
 \renewcommand{\cftchappagefont}{\bfseries}
 
 \setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
@@ -125,12 +136,8 @@
 \renewcommand{\footrulewidth}{0pt}
 
 %--------------------------------------------------------------------
-% Bibliography
+% Links
 %--------------------------------------------------------------------
-\usepackage[numbers,sort&compress]{natbib}
-% report.cls titles the bibliography "Bibliography", which would disagree with
-% the "References" line this document adds to the contents list.
-\renewcommand{\bibname}{References}
 \usepackage[breaklinks]{hyperref}
 \hypersetup{colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue}
 \usepackage{url}
@@ -226,151 +233,19 @@ Academic Year 2026 \quad\textbar\quad Mini-Project Report
 
 \clearpage
 
-%====================================================================
-% ABSTRACT
-%====================================================================
 \renewcommand{\thepage}{\roman{page}}
 \setcounter{page}{1}
-
-\chapter*{Abstract}
-\addcontentsline{toc}{chapter}{Abstract}
-
-A ride-hailing operator needs two answers that do not fit the same
-processing model. A dispatcher needs to know which vehicles are idle and
-which zones are earning \emph{now}, within seconds, and does not mind if
-one trip is missing. Finance needs to know which vehicles are becoming
-unprofitable once fuel and maintenance costs are applied, and that figure
-must be exact, complete, and restatable when a fuel partner resubmits a
-corrected file days later. This report presents a data platform that
-answers both from one immutable master dataset.
-
-We chose a \textbf{Lambda architecture} and rejected Kappa on the record.
-What decided it was not latency but \emph{recomputation cost}. The
-correction that forces a restatement never enters the event stream at
-all. It arrives on a separate channel, as a daily CSV drop, long after
-the telemetry it restates, so replaying the log, which is Kappa's entire
-recomputation story, does not touch the thing that actually causes
-restatements. A date-partitioned Parquet lake lets the batch layer read
-the single partition it needs and reconcile a full simulated day in
-9.4 seconds. To offer the same guarantee, Kappa would need Kafka
-retention measured in months. Lambda's best-known weakness is two
-codebases that drift, and we answered it with a shared \code{common/}
-package that the simulators, both processing layers and the serving API
-all import. Two duplications remain, each kept in step with its Python
-counterpart by a test.
-
-The system ingests a Kafka telemetry stream from a 50-vehicle simulated
-fleet plus a daily partner expense file, on a clock where one real second
-is one simulated minute. Spark Structured Streaming archives the raw
-stream and computes live views. Airflow runs a nine-task PySpark
-reconciliation per simulated day. PostgreSQL serves both layers behind a
-FastAPI surface that labels every figure \code{source: speed} or
-\code{source: batch} and never blends the two.
-
-The central evidence is quantitative, and it does not flatter us. The
-speed layer runs a 10-simulated-minute watermark against injected
-lateness of up to 20 minutes, so the two layers are \emph{built} to
-disagree. Across four reconciled days the revenue drift came out at
-0.000000, 0.003384, 0.000000 and 0.000000. The one non-zero day traces to
-a single late \code{trip\_end} event that the watermark dropped and the
-batch layer recovered. We then worked out \emph{why} the drift is usually
-zero: 15 rows dropped per day, of which 3.4\% are revenue-bearing, giving
-an expectation of about half an event. We report that arithmetic rather
-than inflating the fault rates to manufacture a bigger number.
-Recomputation was tested directly. A corrected \code{v2} expense file
-reproduced the same 50 rows with different values, and a forced replay
-returned bit-identical figures.
-
-Observability spans all five pipeline stages. Of ten alert rules, five
-have been seen firing \emph{and} arriving end to end, and a sixth is
-suppressed on purpose by an inhibition rule. 202 automated tests and a
-28-check smoke test pass against the live stack from a fresh clone. We
-also report six defects found by running the system rather than reading
-it, among them a green healthcheck sitting over an archiver that had
-stopped writing 26 minutes earlier.
-
-\clearpage
-
-%====================================================================
-% ACKNOWLEDGEMENTS
-%====================================================================
-\chapter*{Acknowledgements}
-\addcontentsline{toc}{chapter}{Acknowledgements}
-
-We thank the staff of the Department of Electrical and Information
-Engineering, University of Ruhuna, for the module and the environment in
-which a project of this scope could be attempted inside two weeks, and
-the lecturer in charge of EC8203 for a brief that was specific enough to
-argue with --- the tension between its two sub-questions is what made the
-architecture decision worth making rather than merely worth stating.
-
-This system is assembled almost entirely from open-source work. We thank
-the maintainers of Apache Kafka, Apache Spark, Apache Airflow,
-PostgreSQL, FastAPI, Prometheus, Alertmanager, Grafana and Docker. We
-also thank the authors whose published arguments about Lambda and Kappa
-we engage with in Section~\ref{sec:lit-lambda}; disagreeing with a
-well-made case is a far better way to learn an architecture than
-accepting one.
-
-\clearpage
 
 %====================================================================
 % CONTENTS, FIGURES, TABLES
 %====================================================================
-\setcounter{tocdepth}{2}
+\setcounter{tocdepth}{1}
 \setcounter{secnumdepth}{2}
 {\small
 \tableofcontents
-\addcontentsline{toc}{chapter}{Contents}
-\clearpage
-
 \listoffigures
-\addcontentsline{toc}{chapter}{List of Figures}
-
 \listoftables
-\addcontentsline{toc}{chapter}{List of Tables}
-\clearpage
 }
-
-%====================================================================
-% ACRONYMS
-%====================================================================
-\chapter*{Acronyms}
-\addcontentsline{toc}{chapter}{Acronyms}
-
-\begin{multicols}{2}
-\footnotesize
-\noindent
-\begin{tabular}{@{}lcl@{}}
-API   & - & Application Programming Interface\\
-CSV   & - & Comma-Separated Values\\
-CU    & - & Currency Unit (simulated)\\
-DAG   & - & Directed Acyclic Graph\\
-DLQ   & - & Dead-Letter Queue\\
-DQ    & - & Data Quality\\
-ETL   & - & Extract, Transform, Load\\
-GPS   & - & Global Positioning System\\
-HTTP  & - & Hypertext Transfer Protocol\\
-JSON  & - & JavaScript Object Notation\\
-JVM   & - & Java Virtual Machine\\
-KRaft & - & Kafka Raft (metadata mode)\\
-\end{tabular}
-
-\noindent
-\begin{tabular}{@{}lcl@{}}
-RF    & - & Replication Factor\\
-RPC   & - & Remote Procedure Call\\
-SLA   & - & Service-Level Agreement\\
-SLO   & - & Service-Level Objective\\
-SQL   & - & Structured Query Language\\
-SVG   & - & Scalable Vector Graphics\\
-UDF   & - & User-Defined Function\\
-UUID  & - & Universally Unique Identifier\\
-YAML  & - & YAML Ain't Markup Language\\
-ZK    & - & ZooKeeper\\
-\end{tabular}
-\end{multicols}
-
 \clearpage
 
 %====================================================================
@@ -384,18 +259,6 @@ ZK    & - & ZooKeeper\\
 \input{chapters/ch03_implementation}
 \input{chapters/ch04_results}
 \input{chapters/ch05_conclusion}
-
-%====================================================================
-% BIBLIOGRAPHY
-%====================================================================
-\clearpage
-\bibliographystyle{ieeetr}
-% The contents line must be added BEFORE \bibliography. Placed after, it
-% records the page the bibliography ENDED on, which is off by one -- a
-% wrong page number in the contents list is exactly the kind of defect
-% nobody checks and every reader notices.
-\addcontentsline{toc}{chapter}{References}
-\bibliography{bibliography}
 
 %====================================================================
 % APPENDICES

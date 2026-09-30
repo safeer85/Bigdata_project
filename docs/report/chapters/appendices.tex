@@ -1,91 +1,3 @@
-\chapter{Repository Layout}
-\label{app:repo}
-
-\begin{table}[htbp]
-\centering
-\caption{Top-level layout of the submitted repository.}
-\label{tab:repo}
-\begin{tabularx}{\textwidth}{@{}lX@{}}
-\toprule
-\textbf{Directory} & \textbf{Contents}\\
-\midrule
-\code{common/} &
-  Shared by \emph{both} layers: \code{simclock}, \code{geo} (zones and
-  haversine), \code{schemas}, \code{validation}, \code{earnings},
-  \code{profitability}, JSON \code{logging}, \code{metrics},
-  \code{db} upsert helpers, \code{config}\\
-\code{simulators/} &
-  \code{telemetry/} (Kafka producer and fleet state machine),
-  \code{expenses/} (daily CSV dropper), \code{control.py}\\
-\code{streaming/} &
-  \code{archiver.py}, \code{speed.py}, \code{state.py}, \code{sinks.py},
-  \code{listener.py}, \code{watchdog.py}\\
-\code{batch/} &
-  \code{runs.py}, \code{expenses.py}, \code{vehicle\_day.py},
-  \code{reconcile.py}, \code{report.py}\\
-\code{airflow/dags/} &
-  \code{fleet\_daily\_reconciliation.py} (9 tasks)\\
-\code{api/} &
-  FastAPI: \code{app.py}, \code{queries.py}, \code{models.py},
-  \code{batch\_metrics.py}\\
-\code{db/init/} &
-  PostgreSQL schema, indexes and views\\
-\code{observability/} &
-  \code{prometheus/} (config and 10 alert rules), \code{alertmanager/},
-  \code{grafana/} (provisioning and 2 dashboards)\\
-\code{scripts/} &
-  \code{simclock\_init}, \code{create\_topics}, \code{wait\_for\_stack},
-  \code{demo}, \code{smoke\_test}, report build helpers\\
-\code{tests/} &
-  202 tests: unit, PySpark and API\\
-\code{docs/} &
-  \code{SPEC.md}, this report, \code{decisions.md},
-  \code{contributions.md}, \code{runbook.md}, \code{walkthrough.md},
-  \code{report-assets/}\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\chapter{Database Schema}
-\label{app:schema}
-
-Every \code{rt\_*} table carries a primary key on its \emph{natural} key,
-which is what makes the streaming upserts of
-Section~\ref{sec:impl-sinks} idempotent.
-
-\begin{table}[htbp]
-\centering
-\caption{Serving-store tables, by owning layer.}
-\label{tab:schema}
-\begin{tabularx}{\textwidth}{@{}llX@{}}
-\toprule
-\textbf{Table} & \textbf{Key} & \textbf{Purpose}\\
-\midrule
-\multicolumn{3}{@{}l}{\emph{Speed layer}}\\
-\code{rt\_vehicle\_state} & \code{(vehicle\_id)} &
-  Current status, zone and last event time per vehicle\\
-\code{rt\_zone\_hourly} & \code{(zone\_id, window\_start)} &
-  Windowed trips and earnings by zone and simulated hour\\
-\code{rt\_vehicle\_daily} & \code{(vehicle\_id, sim\_date)} &
-  Running daily totals from the speed layer\\
-\code{idle\_alerts} & \code{(vehicle\_id, opened\_at)} &
-  Threshold alerts raised by the stateful idle machine\\
-\addlinespace
-\multicolumn{3}{@{}l}{\emph{Batch layer and bookkeeping}}\\
-\code{batch\_vehicle\_daily} & \code{(vehicle\_id, sim\_date)} &
-  Reconciled per-vehicle-day profitability and its seven flags\\
-\code{batch\_runs} & \code{(run\_id)} &
-  One row per reconciliation attempt, with status and expense version\\
-\code{dq\_issues} & \code{(id)} &
-  Quarantined rows with reason, by date\\
-\code{speed\_batch\_drift} & \code{(sim\_date)} &
-  Per-date speed-versus-batch revenue comparison\\
-\code{alert\_notifications} & \code{(id)} &
-  Alerts delivered by Alertmanager to the API webhook\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
 \chapter{Alert Rule Inventory}
 \label{app:alerts}
 
@@ -108,7 +20,7 @@ firing \textbf{and} delivered into \code{alert\_notifications}.}
 \code{StreamLagHigh} & processing & warning &
   Query more than 5{,}000 offsets behind & --\\
 \code{ExpenseFileLate} & orchestration & warning &
-  An expense file missed its first-delivery SLA & yes\\
+  Expense file missed its first-delivery SLA & yes\\
 \code{BatchRunFailed} & orchestration & critical &
   Last reconciliation run failed & inhibited\\
 \code{BatchNotRunRecently} & orchestration & warning &
@@ -123,14 +35,6 @@ firing \textbf{and} delivered into \code{alert\_notifications}.}
 \end{tabularx}
 \end{table}
 
-Each rule carries a \code{for:} duration of 1--2 real minutes. The
-durations are short on purpose: at \code{COMPRESSION=60}, one real
-minute is one simulated hour, so a conventional five-minute
-\code{for:} would mean waiting five simulated hours before an alert
-fired. Every rule has a corresponding entry in
-\code{docs/runbook.md} giving what it means, how to reproduce it and how
-to fix it.
-
 \chapter{API Surface}
 \label{app:api}
 
@@ -143,30 +47,19 @@ them.}
 \toprule
 \textbf{Endpoint} & \textbf{Layer} & \textbf{Answers}\\
 \midrule
-\code{GET /health} & ops &
-  Liveness, plus \code{sim\_time} and clock compression\\
-\code{GET /fleet/live} & speed &
-  Active vehicles, idle ratio, trips/hour, earnings\\
-\code{GET /zones/live} & speed &
-  Current utilisation and earnings by zone\\
-\code{GET /zones/\{id\}/hourly} & speed &
-  One zone's windowed history by simulated hour\\
-\code{GET /alerts/idle} & speed &
-  Open and closed idle alerts\\
-\code{GET /vehicles/unprofitable} & batch &
-  Vehicles flagged unprofitable or becoming unprofitable\\
-\code{GET /vehicles/\{id\}} & both &
-  The explicit Lambda merge: \code{live} and \code{today} from speed,
-  \code{history} from batch, each labelled\\
-\code{GET /reports/\{sim\_date\}} & batch &
-  The consolidated daily reconciliation report (HTML)\\
-\code{GET /pipeline/status} & ops &
-  Reconciled dates, last run, drift, expense-file state\\
-\code{POST /alerts/webhook} & ops &
-  Alertmanager delivery target; writes
-  \code{alert\_notifications}\\
-\code{GET /metrics} & ops &
-  Prometheus exposition, including re-exported batch metrics\\
+\code{GET /health} & ops & Liveness, \code{sim\_time}, compression\\
+\code{GET /fleet/live} & speed & Active vehicles, idle ratio, trips/hour,
+  earnings\\
+\code{GET /zones/live} & speed & Current utilisation and earnings by zone\\
+\code{GET /zones/\{id\}/hourly} & speed & One zone's hourly history\\
+\code{GET /alerts/idle} & speed & Open and closed idle alerts\\
+\code{GET /vehicles/unprofitable} & batch & Vehicles flagged
+  (becoming) unprofitable\\
+\code{GET /vehicles/\{id\}} & both & Labelled speed and batch blocks\\
+\code{GET /reports/\{sim\_date\}} & batch & Daily reconciliation report\\
+\code{GET /pipeline/status} & ops & Reconciled dates, last run, drift\\
+\code{POST /alerts/webhook} & ops & Alertmanager delivery target\\
+\code{GET /metrics} & ops & Prometheus exposition\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -174,12 +67,9 @@ them.}
 \chapter{Statement of Individual Contributions}
 \label{app:contributions}
 
-The project was delivered by a three-member group. The work was divided
-by \textbf{pipeline stage}, so that each member owned one end-to-end
-vertical slice --- its source code, its schema objects, its tests and its
-sections of this report --- rather than all three editing the same files.
-Table~\ref{tab:contributions} records the principal areas each member
-led. Design decisions were taken jointly and code was reviewed across the
+Work was divided by \textbf{pipeline stage}, so each member owned one
+vertical slice: its code, schema objects, tests and report sections.
+Design decisions were taken jointly and code was reviewed across the
 team.
 
 \begin{table}[htbp]
@@ -191,206 +81,27 @@ team.
 \textbf{Member} & \textbf{Reg. No.} & \textbf{Principal areas}\\
 \midrule
 Ahamed N.F.F. & EG/2021/4390 &
-  Ingestion and the data contract: \code{simulators/} (telemetry
-  producer, fleet state machine, fault injection, expense dropper),
-  Kafka topic setup and partitioning, and the \code{simclock},
-  \code{schemas}, \code{validation}, \code{geo} and \code{earnings}
-  modules of \code{common/}\\
+  Ingestion and data contract: \code{simulators/} (telemetry producer,
+  fault injection, expense dropper), Kafka topics and partitioning, and
+  the \code{simclock}, \code{schemas}, \code{validation}, \code{geo} and
+  \code{earnings} modules of \code{common/}\\
 \addlinespace
 Safeer S.M. & EG/2021/4771 &
   Stream processing and serving: \code{streaming/} (archiver, speed
-  layer, per-vehicle state machine, sinks, listener, watchdog),
-  \code{api/}, the \code{rt\_*} tables, and the \code{db} upsert
-  helpers in \code{common/}\\
+  layer, idle state machine, sinks, watchdog), \code{api/}, the
+  \code{rt\_*} tables and the \code{db} helpers in \code{common/}\\
 \addlinespace
 Nafla M.N.P. & EG/2021/4687 &
   Batch, orchestration and observability: \code{batch/}, the
-  \code{fleet\_daily\_reconciliation} DAG, all of
-  \code{observability/} (Prometheus rules, Alertmanager, both Grafana
-  dashboards), and the \code{profitability}, \code{metrics} and
-  \code{logging} modules of \code{common/}\\
+  \code{fleet\_daily\_reconciliation} DAG, \code{observability/}
+  (Prometheus rules, Alertmanager, Grafana), and the
+  \code{profitability}, \code{metrics} and \code{logging} modules of
+  \code{common/}\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\section*{Decisions each member defends}
-
-\begin{description}
-  \item[Ahamed N.F.F.] Partitioning by \code{vehicle\_id} as an
-        ordering requirement (Section~\ref{sec:impl-partitioning}); the
-        60$\times$ simulated clock and its derivation from a persisted
-        start instant (Section~\ref{sec:simclock}); the deliberate fault
-        rates (Section~\ref{sec:impl-faults}); and the decision that
-        validation rejects rather than repairs.
-  \item[Safeer S.M.] The deliberately boring archiver
-        (Section~\ref{sec:impl-archiver}); the four subtleties of the
-        stateful idle machine and the choice of
-        \code{EventTimeTimeout} (Section~\ref{sec:impl-idle});
-        idempotent sinks and their natural keys
-        (Section~\ref{sec:impl-sinks}); and the explicit, never-blended
-        Lambda merge (Section~\ref{sec:impl-merge}).
-  \item[Nafla M.N.P.] The batch layer trusting nothing and applying no
-        watermark (Section~\ref{sec:impl-trust}); delete-then-insert
-        recomputation (Section~\ref{sec:recompute}); the poll-not-cron
-        DAG schedule; and the alerting design, including the inhibition
-        rule (Section~\ref{sec:impl-alerting}).
-\end{description}
-
-\section*{Deliberately shared: the \code{common/} package}
-
-\code{common/} is the project's answer to Lambda's central weakness
-(Section~\ref{sec:lambda-cost}). Zone mapping, distance, fare,
-validation and profitability rules are defined \emph{once} and imported
-by the simulator, both processing layers and the API. Each module has a
-primary author, listed above, but the rule the team worked to was that
-no business rule is defined twice, and a change to a \code{common/}
-module is reviewed by whichever members' layers import it. That
-constraint is why every member can explain modules they did not
-personally write: their own layer depends on them.
-
-\section*{Worked on jointly}
-
-\code{docs/SPEC.md}, written together before any code and treated as
-fixed thereafter; \code{docker-compose.yml}, the \code{Makefile} and
-\code{common/config.py}, since every member's service is defined in
-them; the smoke test, to which each member contributed the checks for
-their own layer; the architecture argument of
-Chapter~\ref{ch:architecture} and the consistency analysis of
-Section~\ref{sec:consistency}; and every acceptance run --- the
-fresh-clone start, the multi-day reconciliation and the alert-firing
-verification each require all three layers alive at once.
-
-A fuller per-member breakdown, including the test files each member
-wrote, is kept in \code{docs/contributions.md} in the repository.
-
-
-\chapter{Defects Found by Operating the System}
-\label{app:defects}
-
-Summarised in Section~\ref{sec:defects}. Each was invisible to
-code review and visible within minutes of checking the numbers against
-expectations.
-
-\begin{table}[htbp]
-\centering
-\caption{Defects found by operating the system, and what each
-generalises to.}
-\label{tab:defects}
-\begin{tabularx}{\textwidth}{@{}lXX@{}}
-\toprule
-\textbf{\#} & \textbf{What happened} & \textbf{The general lesson}\\
-\midrule
-1 & A Spark worker restart killed the archiver's executor. The query
-    stayed ``active'', so \code{awaitTermination()} never returned, the
-    healthcheck stayed green, and the archiver silently stopped writing
-    for \textbf{26 minutes}; the batch layer then reconciled from an
-    incomplete archive. &
-    \textbf{A healthcheck that proves liveness proves nothing about
-    work.} \code{streaming/watchdog.py} now monitors \emph{progress} and
-    exits so Docker restarts from the checkpoint --- verified by killing
-    executors deliberately.\\
-\addlinespace
-2 & The first full reconciliation flagged \textbf{35 of 50} vehicles
-    unprofitable, with costs at 1.9$\times$ revenue. The pipeline was
-    correct; the economics were not calibrated. After recalibration:
-    3--6 of 50, 38--48\% margin. &
-    \textbf{A correct pipeline can produce a useless answer.} Only
-    running it end to end on realistic volumes surfaced this.\\
-\addlinespace
-3 & The odometer ledger checkpointed every 30 \emph{real} seconds ---
-    30 \emph{simulated} minutes at \code{COMPRESSION=60}. A restart lost
-    ~90\,km and flagged \textbf{21 of 50} vehicles for a mismatch the
-    partner had not caused. &
-    \textbf{Intervals chosen in real seconds are 60$\times$ longer in
-    business terms.} A check that fires because of our own restart
-    trains the reader to ignore it.\\
-\addlinespace
-4 & Batch gauges defined in \code{common/metrics.py} --- which every
-    service imports --- meant all five services exported
-    \code{fleet\_batch\_last\_success\_timestamp} at its default of 0,
-    and \code{BatchNotRunRecently} fired forever on four bogus series. &
-    \textbf{Shared code publishes shared metrics.} A
-    permanently-firing false alert is worse than no alert.\\
-\addlinespace
-5 & The expense SLA was evaluated against every file version, so a
-    corrected \code{v2} --- by definition sent after the deadline ---
-    marked every resubmission late. &
-    \textbf{An alert that fires on a normal operation is noise.} The SLA
-    now governs first delivery only.\\
-\addlinespace
-6 & The ``fresh clone $\rightarrow$ one command'' check exposed two
-    Windows-only defects: PowerShell turning Docker's normal stderr
-    progress into a terminating error, and a wrapper binding Docker's
-    \code{-d} flag to itself. &
-    \textbf{Acceptance checks must actually be run.} No amount of
-    reading would have found either.\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\chapter{At Production Scale}
-\label{app:production}
-
-Summarised in Section~\ref{sec:production}. Every row is a
-deliberate simplification made for a two-week, single-laptop project,
-paired with what running a real fleet would require.
-
-\begin{table}[htbp]
-\centering
-\caption{Simplifications made here, and what each becomes at production
-scale.}
-\label{tab:production}
-\begin{tabularx}{\textwidth}{@{}lXX@{}}
-\toprule
-\textbf{Layer} & \textbf{Today} & \textbf{At scale}\\
-\midrule
-Ingestion & One broker, RF~1, 6 partitions, 7-day retention;
-  \code{schema\_version} plus defensive validation; manual DLQ replay. &
-  Three brokers, RF~3, \code{min.insync.replicas=2}. A \textbf{schema
-  registry} so incompatible producers are rejected at publish time
-  rather than discovered in the DLQ, and an automated replay path.
-  Partition count would follow measured throughput, but the
-  \emph{keying} would not change --- it is a correctness constraint, not
-  a tuning knob.\\
-\addlinespace
-Storage & Parquet on a Docker volume, partitioned by \code{sim\_date};
-  archiver writes every 30\,s. &
-  Object storage (a one-variable change --- every path is built from
-  \code{LAKE\_ROOT}), plus a \textbf{table format} (Iceberg or Delta) for
-  atomic partition overwrites, and \textbf{compaction}, without which the
-  batch \emph{read} outgrows the batch \emph{compute}.\\
-\addlinespace
-Processing & Spark standalone, one worker, 3 cores, both streaming apps
-  co-resident; batch in local mode. &
-  Kubernetes with the Spark operator. The single most valuable change is
-  \textbf{decoupling the archiver from the speed layer} --- they already
-  have separate checkpoints but compete for the same cores, which is how
-  26 minutes of archiving was lost (defect~1).\\
-\addlinespace
-Serving & One PostgreSQL instance for both layers, queried directly by
-  Grafana. &
-  The access patterns diverge: keep PostgreSQL for the \code{rt\_*}
-  point lookups, add read replicas so dashboards cannot slow the
-  streaming sinks, and move \code{batch\_vehicle\_daily} to a columnar
-  warehouse once history outgrows one node. Add caching on
-  \code{/fleet/live} and authentication.\\
-\addlinespace
-Observability & Prometheus, Alertmanager, Grafana, structured JSON logs,
-  correlation IDs. &
-  \textbf{Log aggregation} (Loki or ELK) --- the logs are already
-  structured JSON with a \code{stage} field precisely so this is a
-  deployment step, not a code change. Then \textbf{real tracing}, once
-  multiple producers make ``which producer caused this DLQ spike?''
-  unanswerable from correlation IDs. Then \textbf{SLOs with error
-  budgets}~\cite{beyer2016sre}: \code{IdleVehiclesHigh > 8} is tuned to a
-  50-vehicle fleet and does not survive it doubling.\\
-\addlinespace
-Clock & Simulated time derived from wall-clock elapsed time, so downtime
-  does not pause the world. &
-  \textbf{Annotate known outage windows}, so downstream consumers --- and
-  the \code{becoming\_unprofitable} trend rule in particular --- can
-  exclude degraded days rather than mistaking an incident for a
-  commercial decline.\\
-\bottomrule
-\end{tabularx}
-\end{table}
+Worked on jointly: \code{docs/SPEC.md}, \code{docker-compose.yml}, the
+\code{Makefile}, the smoke test, the architecture and consistency
+analysis, and every end-to-end acceptance run. A fuller breakdown is in
+\code{docs/contributions.md}.
